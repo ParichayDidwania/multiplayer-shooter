@@ -9,7 +9,15 @@ export class EventManager {
                         receiver.send(JSON.stringify(message));
                     }
                 }
-            break;  
+                break;
+
+            case  "SHOOT":
+                for(let receiver of socketList) {
+                    if(receiver.user_id != socket.user_id) {
+                        receiver.send(JSON.stringify(message));
+                    }
+                }
+                break;
         }
     }
 }

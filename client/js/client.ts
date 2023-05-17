@@ -1,16 +1,27 @@
-import Phaser from "phaser";
-const playerSprite = 'assets/sprites/shooter.png';
+import Phaser, { Game } from "phaser";
+
+const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
 
-let speed = 20;
+let speed = 0.2;
 let diag_speed = speed / 1.414
 let player : any;
 let wasd : any;
 let enemies : any = {};
+let labels: any = {};
 let ws: any;
 let username: string | null;
 let isStarted = false;
+let projectiles: any;
+let handle_angle = Math.PI/2;
+let handle_distance = 20
+let shapes: any;
+let gun_angle = 0.34
+let gun_distance = 60;
+let bulletVelocity = 5;
+let label: any;
 class GameScene extends Phaser.Scene {
+    bullet: any;
     constructor() {
         super({
             key: "GameScene"
@@ -24,27 +35,27 @@ class GameScene extends Phaser.Scene {
     preload(): void {
         this.load.image('player', playerSprite);
         this.load.image('projectile', bulletSprite);
+        this.load.json('shapes', 'assets/sprites/playerShape.json');
     }
       
     create(): void {
-        this.physics.world.setBounds(0, 0, 1000, 1000);
-        let bound_rect = this.add.rectangle(501,501,999,999);  // draw rectangle around bounds
-        bound_rect.setStrokeStyle(1, 0x343a40);
-        player = this.physics.add.sprite(200, 200, 'player');
-        player.body.collideWorldBounds = true;
-        player.setScale(0.5, 0.5);
-        player.setOrigin(0.5, 0.7476635514018692);
-        player.last_shot = 0;
-        player.active = true;
-        // this.cameras.main.startFollow(player);
+        shapes = this.cache.json.get('shapes');
+        let bounds = this.matter.world.setBounds(0, 0, 1000, 1000);
+        Object.values(bounds.walls).forEach(o => o.label = 'bounds');
 
-        let projectiles = this.physics.add.group({
-            classType: Projectile,
-            runChildUpdate: true,
-            collideWorldBounds: false,
+        player = createPlayer();
+        
+        this.matter.world.on('collisionstart', function (event: any, bodyA: any, bodyB: any) {
+            if(bodyA.label == 'bounds' && bodyB.label == 'bullet') {
+                bodyB.gameObject.destroy();
+            }
+
+            if(bodyA.label == 'player' && bodyB.label == 'bullet') {
+                bodyB.gameObject.destroy();
+            }
         });
 
-        this.physics.add.collider(projectiles, player, onPlayerHit);
+        // this.cameras.main.startFollow(player);
 
         wasd = this.input.keyboard?.addKeys({ 'W': Phaser.Input.Keyboard.KeyCodes.W, 'S': Phaser.Input.Keyboard.KeyCodes.S, 'A': Phaser.Input.Keyboard.KeyCodes.A, 'D': Phaser.Input.Keyboard.KeyCodes.D });
 
@@ -60,22 +71,15 @@ class GameScene extends Phaser.Scene {
 
         this.input.on("pointerdown", (pointer: any) => {
             if (player.last_shot > 250 && player.active) {
-                    let angle = Phaser.Math.Angle.Between(player.x, player.y, pointer.x + this.cameras.main.scrollX, pointer.y + this.cameras.main.scrollY);
-                    var projectile = projectiles.get();
-                    if (projectile) {
-                    projectile.setScale(2, 2);
-                    projectile.shoot(player, angle - Math.PI);
-                    player.last_shot = 0;
-                }
-        
-                // send_click(pointer.x + this.cameras.main.scrollX, pointer.y + this.cameras.main.scrollY, angle);
-                player.anims.play('shoot', true);
+                shootPreprocess(player);                
+                player.last_shot = 0;
             }
         }, this);
 
-        this.events.on('postupdate', function () {
+        this.events.on('postupdate', () => {
             send_pose(player);
-        })
+        }) 
+
         isStarted = true;
     }
 
@@ -84,12 +88,13 @@ class GameScene extends Phaser.Scene {
         var xMovement = 0;
         var yMovement = 0;
 
-        xMovement = wasd.check_pressed_left() ? -1 : wasd.check_pressed_right() ? 1 : 0;
-        yMovement = wasd.check_pressed_up() ? -1 : wasd.check_pressed_down() ? 1 : 0;
+        xMovement = wasd.check_pressed_left() ? 1 : wasd.check_pressed_right() ? -1 : 0;
+        yMovement = wasd.check_pressed_up() ? 1 : wasd.check_pressed_down() ? -1 : 0;
 
         if (xMovement != 0 && yMovement != 0) {
             player.setVelocityX(xMovement * diag_speed * delta);
             player.setVelocityY(yMovement * diag_speed * delta);
+            
             let angle = Phaser.Math.Angle.Between(player.x, player.y, this.input.mousePointer.x + this.cameras.main.scrollX,  this.input.mousePointer.y + this.cameras.main.scrollY);
             player.setRotation(angle);
         } else {
@@ -99,6 +104,12 @@ class GameScene extends Phaser.Scene {
             player.setRotation(angle);
         }
         player.last_shot = player.last_shot + delta;
+
+        if(label) {
+            label.x = player.x;
+            label.y = player.y - 100;
+        }
+        
         // activity_detected = (2 * xMovement) + yMovement != 0 ? true : false;
     }
 };
@@ -109,14 +120,16 @@ function onPlayerHit(object: any, projectile: any) {
 
 const config = {
     type: Phaser.CANVAS,
-    parent: 'div_game',
+    parent: 'game-container',
     backgroundColor: '#6c757d',
     physics: {
-      default: 'arcade',
-      arcade: {
-        debug: false,
-        gravity: { y: 0 }
-      }
+      default: 'matter',
+      matter: {
+            gravity: {
+                y: 0
+            },
+            debug: true
+        }
     },
     width: 1000,
     height: 1000,
@@ -125,62 +138,43 @@ const config = {
     scene: [GameScene]
 }
 
-class Projectile extends Phaser.Physics.Arcade.Sprite {
-    lifespan = 0;
-    constructor(scene: Phaser.Scene) {
-		super(scene, 0, 0, 'projectile');
-        this.setDepth(-1);
-	}
-
-    shoot(_player: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody, angle: number) {
-        this.enableBody( // Enable physics body
-            true, // Reset body and game object, at (x, y)
-            _player.x,
-            _player.y,
-            true, // Activate sprite
-            true  // Show sprite
-        );
-    
-        this.setRotation(angle);
-        const vx = Math.cos(this.rotation - Math.PI) * 40
-        const vy = Math.sin(this.rotation - Math.PI) * 40
-    
-        this.setPosition(_player.x + vx, _player.y + vy);
-    
-        game.scene.scenes[0].physics.velocityFromRotation(this.rotation - Math.PI, 1000, this.body?.velocity)
-        this.lifespan = 2000;
-    }
-
-    update(time: number, delta: number) {
-        this.lifespan -= delta;
-        if (this.lifespan <= 0) {
-                this.disableBody( // Stop and disable physics body
-                true, // Deactivate sprite (active=false)
-                true  // Hide sprite (visible=false)
-            );
-        }
-    }
-}
-
-function add_enemy(uid: string) {
-    let sprite = game.scene.scenes[0].physics.add.sprite(0, 0, 'player');
-    sprite.setScale(0.5, 0.5);
-    sprite.name = uid;
-    enemies[uid] = sprite;
-  
-    game.scene.scenes[0].physics.add.collider(sprite, player);
+function add_enemy(uid: string, x: number, y: number) {
+    let sprite = createPlayer(true, x, y);
+    enemies[uid] = sprite;  
     return sprite
 }
 
+function add_label(uid: string, x: number, y: number) {
+    let scene = game.scene.scenes[0];
+    return scene.add.text(x, y - 100, uid ?? "UNNAMED", { fontSize: 30, backgroundColor: '#808080' })
+}
+
 function renderEnemy(uid: string, x: number, y: number, angle: number) {
+    let enemy, label;
     if (enemies[uid] != undefined) {
-        let enemy = enemies[uid];
-        enemy.setPosition(x, y);
-        enemies[uid].setRotation(angle);
+        enemy = enemies[uid];
     } else {
-        let enemy = add_enemy(uid);
-        enemy.setPosition(x, y);
-        enemy.setRotation(angle);
+        enemy = add_enemy(uid, x, y);
+        // label = add_label(uid, x, y)
+    }
+
+    enemy.setPosition(x, y);
+    enemy.setRotation(angle);
+}
+
+function sendShoot(pointer_x: number, pointer_y: number, angle: number) {
+    ws.send(JSON.stringify({
+        event_name: "SHOOT",
+        uid: username,
+        pointer_x: pointer_x,
+        pointer_y: pointer_y,
+        angle: angle
+    }))
+}
+
+function renderBullets(uid: string, pointer_x: number, pointer_y: number, angle: number) {
+    if (enemies[uid] != undefined) {
+        shoot(pointer_x, pointer_y, angle);
     }
 }
 
@@ -194,6 +188,53 @@ function send_pose(player: any) {
         y: player.y,
         angle: player.rotation
     }))
+}
+
+function createPlayer(enemy = false, x: number = 200, y: number = 200) {
+    let scene = game.scene.scenes[0];
+    let player: any = scene.matter.add.sprite(x, y, 'player', undefined, {
+        shape: shapes.shooter2,
+    });
+
+    player.body.immovable = true;
+    player.body.moves = false;
+
+    player.body.collideWorldBounds = true;
+    player.setScale(0.5, 0.5);
+    player.last_shot = 0;
+    player.active = true;
+    
+    return player;
+}
+
+function shootPreprocess(player: any) {
+    let angle = player.rotation;
+    var pointX = player.x + gun_distance * Math.cos(angle + gun_angle);
+    var pointY = player.y + gun_distance * Math.sin(angle + gun_angle);
+    let handleX = player.x + handle_distance * Math.cos(angle + handle_angle);
+    let handleY = player.y + handle_distance * Math.sin(angle + handle_angle);
+    let processedAngle = Phaser.Math.Angle.Between(handleX, handleY, pointX, pointY);
+    
+    shoot(pointX, pointY, processedAngle);
+
+    sendShoot(pointX, pointY, processedAngle);
+}
+
+function shoot(pointX: number, pointY: number, processedAngle: number, ) {
+    let scene: any = game.scene.scenes[0];
+    let vx = Math.cos(processedAngle) * bulletVelocity;
+    let vy = Math.sin(processedAngle) * bulletVelocity
+    scene.bullet = scene.matter.add.image(
+        pointX,
+        pointY,
+        "projectile",
+        undefined,
+        { friction: 0, frictionAir: 0.001, label: "bullet" }
+    ).setOrigin(0.5, 0.5);
+    scene.bullet.setRotation(processedAngle - Math.PI)
+    scene.bullet.setScale(1.5, 1.5)
+    scene.bullet.setVelocityX(vx);
+    scene.bullet.setVelocityY(vy);
 }
 
 window.onload = () => {
@@ -210,7 +251,11 @@ window.onload = () => {
                 switch(parsedEvent.event_name) {
                     case 'POSITION':
                         renderEnemy(parsedEvent.uid, parsedEvent.x, parsedEvent.y, parsedEvent.angle);
-                    break;
+                        break;
+
+                    case 'SHOOT':
+                        renderBullets(parsedEvent.uid, parsedEvent.pointer_x, parsedEvent.pointer_y, parsedEvent.angle);
+                        break;
                 }
             }
         } catch(e) {
