@@ -14,12 +14,12 @@ let username: string | null;
 let isStarted = false;
 let projectiles: any;
 let handle_angle = Math.PI/2;
-let handle_distance = 20
+let handle_distance = 16
 let shapes: any;
 let gun_angle = 0.34
-let gun_distance = 60;
+let gun_distance = 48;
 let bulletVelocity = 5;
-let label: any;
+let vision: any;
 class GameScene extends Phaser.Scene {
     bullet: any;
     constructor() {
@@ -36,26 +36,63 @@ class GameScene extends Phaser.Scene {
         this.load.image('player', playerSprite);
         this.load.image('projectile', bulletSprite);
         this.load.json('shapes', 'assets/sprites/playerShape.json');
+        this.load.image('tile', 'assets/sprites/wallv2.png')
+        this.load.tilemapTiledJSON('map', 'assets/sprites/map2.json');
+        this.load.image('vision', 'assets/sprites/mask.png')
     }
       
     create(): void {
+        const map = this.make.tilemap({ key: 'map' });
+        const tileset: any = map.addTilesetImage('wall', 'tile');
+        const layer: any = map.createLayer('Obs', tileset);
+        map.setCollisionBetween(1, 1); 
+        map.setCollisionByProperty({ collides: true });
+        this.matter.world.convertTilemapLayer(layer)
+
+        layer.forEachTile(function (tile: any) {
+            if(tile.physics.matterBody) {
+                tile.physics.matterBody.body.label = 'bounds'; 
+            }
+        });
+
+        const rt = this.make.renderTexture({
+            x: map.widthInPixels/2,
+            y: map.heightInPixels/2,
+            width: map.widthInPixels,
+            height: map.heightInPixels
+        }, true)
+
+        rt.fill(0x000000, 1);
+        // rt.draw(layer)
+        rt.setTint(0x0a2948)
+        rt.setDepth(50);
+
         shapes = this.cache.json.get('shapes');
-        let bounds = this.matter.world.setBounds(0, 0, 1000, 1000);
+        let bounds = this.matter.world.setBounds(map.widthInPixels, map.heightInPixels);
         Object.values(bounds.walls).forEach(o => o.label = 'bounds');
 
-        player = createPlayer();
+        player = createPlayer(username ?? "UNNAMED", Category.SELF);
+
+        vision = this.add.image(player.x, player.y, 'vision').setOrigin(0.5, 0.5);
+        vision.scale = 1;
+        vision.setDepth(100);
+        vision.setVisible(false)
+
+        rt.mask = new Phaser.Display.Masks.BitmapMask(this, vision);
+        rt.mask.invertAlpha = true
+
         
         this.matter.world.on('collisionstart', function (event: any, bodyA: any, bodyB: any) {
             if(bodyA.label == 'bounds' && bodyB.label == 'bullet') {
                 bodyB.gameObject.destroy();
             }
 
-            if(bodyA.label == 'player' && bodyB.label == 'bullet') {
+            if((bodyA.label == Label.ENEMY || bodyA.label == Label.ALLY) && bodyB.label == 'bullet') {
                 bodyB.gameObject.destroy();
             }
         });
 
-        // this.cameras.main.startFollow(player);
+        this.cameras.main.startFollow(player);
 
         wasd = this.input.keyboard?.addKeys({ 'W': Phaser.Input.Keyboard.KeyCodes.W, 'S': Phaser.Input.Keyboard.KeyCodes.S, 'A': Phaser.Input.Keyboard.KeyCodes.A, 'D': Phaser.Input.Keyboard.KeyCodes.D });
 
@@ -76,9 +113,9 @@ class GameScene extends Phaser.Scene {
             }
         }, this);
 
-        this.events.on('postupdate', () => {
+        setInterval(() => {
             send_pose(player);
-        }) 
+        }, 100)
 
         isStarted = true;
     }
@@ -105,9 +142,14 @@ class GameScene extends Phaser.Scene {
         }
         player.last_shot = player.last_shot + delta;
 
-        if(label) {
-            label.x = player.x;
-            label.y = player.y - 100;
+        if(player.label) {
+            player.label.x = player.x;
+            player.label.y = player.y - 60;
+        }
+
+        if(vision) {
+            vision.x = player.x,
+            vision.y = player.y
         }
         
         // activity_detected = (2 * xMovement) + yMovement != 0 ? true : false;
@@ -119,7 +161,7 @@ function onPlayerHit(object: any, projectile: any) {
 }
 
 const config = {
-    type: Phaser.CANVAS,
+    type: Phaser.WEBGL,
     parent: 'game-container',
     backgroundColor: '#6c757d',
     physics: {
@@ -128,7 +170,7 @@ const config = {
             gravity: {
                 y: 0
             },
-            debug: true
+            debug: false
         }
     },
     width: 1000,
@@ -139,27 +181,57 @@ const config = {
 }
 
 function add_enemy(uid: string, x: number, y: number) {
-    let sprite = createPlayer(true, x, y);
+    let sprite = createPlayer(uid, Category.ENEMY, x, y);
     enemies[uid] = sprite;  
     return sprite
 }
 
-function add_label(uid: string, x: number, y: number) {
+function add_label(uid: string, x: number, y: number, category: Category) {
     let scene = game.scene.scenes[0];
-    return scene.add.text(x, y - 100, uid ?? "UNNAMED", { fontSize: 30, backgroundColor: '#808080' })
+    return scene.add.text(x, y - 60, uid, { fontSize: 20, color: category == Category.ENEMY ? '#ff0000' : '#00ff00' }).setOrigin(0.5, 0.5)
 }
 
 function renderEnemy(uid: string, x: number, y: number, angle: number) {
-    let enemy, label;
+    let scene = game.scene.scenes[0];
+    let enemy;
     if (enemies[uid] != undefined) {
         enemy = enemies[uid];
     } else {
         enemy = add_enemy(uid, x, y);
-        // label = add_label(uid, x, y)
     }
 
-    enemy.setPosition(x, y);
-    enemy.setRotation(angle);
+    if(enemy.x != x || enemy.y != y || enemy.rotation != angle) {
+        let x_pos = [enemy.x, x];
+        let y_pos = [enemy.y, y];
+        let shortestAngle = Phaser.Math.Angle.ShortestBetween(Phaser.Math.RadToDeg(enemy.rotation), Phaser.Math.RadToDeg(angle));
+        let shortestRotation = Phaser.Math.DegToRad(shortestAngle);
+        let angle_arr = [enemy.rotation, enemy.rotation + shortestRotation]
+        enemy.incr = 0;
+        if(enemy.timer) {
+            enemy.timer.destroy();
+        }
+        enemy.timer = scene.time.addEvent({
+            delay: 10,
+            loop: true,
+            callback: interpolate,
+            args: [enemy, x_pos, y_pos, angle_arr]
+        })
+    }
+}
+
+function interpolate(player: any, x_pos: any, y_pos: any, angle_arr: any) {
+    let newX = Phaser.Math.Interpolation.Linear(x_pos, player.incr);
+    let newY = Phaser.Math.Interpolation.Linear(y_pos, player.incr);
+    let newA = Phaser.Math.Interpolation.Linear(angle_arr, player.incr);
+    player.setPosition(newX, newY);
+    player.setRotation(Phaser.Math.Angle.Wrap(newA));
+    player.label.x = newX;
+    player.label.y = newY - 60;
+    player.incr += 0.1
+    if(player.incr > 1) {
+        player.timer.destroy();
+        player.timer = null;
+    }
 }
 
 function sendShoot(pointer_x: number, pointer_y: number, angle: number) {
@@ -190,17 +262,33 @@ function send_pose(player: any) {
     }))
 }
 
-function createPlayer(enemy = false, x: number = 200, y: number = 200) {
+function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200) {
     let scene = game.scene.scenes[0];
+    let localLabel;
+    switch(category) {
+        case Category.SELF:
+            localLabel = Label.SELF
+            break;
+        case Category.ALLY:
+            localLabel = Label.ALLY
+            break;
+        case Category.ENEMY:
+            localLabel = Label.ENEMY
+            break;
+    }
+
+    shapes.shooter2.fixtures[0].label = localLabel;
     let player: any = scene.matter.add.sprite(x, y, 'player', undefined, {
         shape: shapes.shooter2,
     });
 
+    player.label = add_label(uid, x, y, category);
+    
     player.body.immovable = true;
     player.body.moves = false;
 
     player.body.collideWorldBounds = true;
-    player.setScale(0.5, 0.5);
+    player.setScale(0.4, 0.4);
     player.last_shot = 0;
     player.active = true;
     
@@ -232,7 +320,7 @@ function shoot(pointX: number, pointY: number, processedAngle: number, ) {
         { friction: 0, frictionAir: 0.001, label: "bullet" }
     ).setOrigin(0.5, 0.5);
     scene.bullet.setRotation(processedAngle - Math.PI)
-    scene.bullet.setScale(1.5, 1.5)
+    scene.bullet.setScale(1.2, 1.2)
     scene.bullet.setVelocityX(vx);
     scene.bullet.setVelocityY(vy);
 }
@@ -264,3 +352,14 @@ window.onload = () => {
     }
 };
 
+enum Category {
+    SELF = 0,
+    ENEMY = 1,
+    ALLY = 2
+}
+
+enum Label {
+    SELF = 'SELF',
+    ENEMY = 'ENEMY',
+    ALLY = 'ALLY'
+}
