@@ -36,14 +36,21 @@ class GameScene extends Phaser.Scene {
         this.load.image('player', playerSprite);
         this.load.image('projectile', bulletSprite);
         this.load.json('shapes', 'assets/sprites/playerShape.json');
-        this.load.image('tile', 'assets/sprites/wallv2.png')
+        this.load.image('tile', 'assets/sprites/wall.png')
         this.load.tilemapTiledJSON('map', 'assets/sprites/map2.json');
-        this.load.image('vision', 'assets/sprites/mask.png')
+        this.load.image('vision', 'assets/sprites/mask.png');
+        this.load.tilemapTiledJSON('floormap', 'assets/sprites/floor.json');
+        this.load.image('floor', 'assets/sprites/floor.png');
     }
       
     create(): void {
         const map = this.make.tilemap({ key: 'map' });
+        const floorMap = this.make.tilemap({ key: 'floormap' });
+
+        const floorset: any = floorMap.addTilesetImage('floor', 'floor');
         const tileset: any = map.addTilesetImage('wall', 'tile');
+
+        const floorlayer: any = floorMap.createLayer('floormap', floorset);
         const layer: any = map.createLayer('Obs', tileset);
         map.setCollisionBetween(1, 1); 
         map.setCollisionByProperty({ collides: true });
@@ -63,7 +70,6 @@ class GameScene extends Phaser.Scene {
         }, true)
 
         rt.fill(0x000000, 1);
-        // rt.draw(layer)
         rt.setTint(0x0a2948)
         rt.setDepth(50);
 
