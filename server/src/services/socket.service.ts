@@ -20,8 +20,22 @@ export class SocketService {
             let message;
             try {   
                 message = JSON.parse(socket_data.toString())
-                this._eventManager.handleEvents(socket, message, this._wsserver.clients as Set<IWebSocket>);
+                try {
+                    this._eventManager.handleEvents(socket, message, this._wsserver.clients as Set<IWebSocket>);
+                } catch (e: any) {
+                    console.log(e);
+                    socket.send(JSON.stringify({
+                        event_name: "ERROR",
+                        message: e.message
+                    }))
+                }
             } catch (err) {}
+        }
+    }
+
+    onClose(socket: IWebSocket) {
+        return () => {
+            this._eventManager.handleDisconnection(socket);
         }
     }
 
@@ -30,6 +44,7 @@ export class SocketService {
         this._wsserver.on('connection', (socket: WebSocket) => {
             let customSocket = this.setSocketIdentifiers(socket);
             customSocket.on('message', this.onMessage(customSocket));
+            customSocket.on('close', this.onClose(customSocket));
         });
     }
 
@@ -40,6 +55,7 @@ export class SocketService {
 
         Object.defineProperties(socket, {
             user_id: { get: function() { return this._socket.user_id }, set: function(user_id: string) { this._socket.user_id = user_id } },
+            room_id: { get: function() { return this._socket.room_id }, set: function(room_id: string) { this._socket.room_id = room_id } },
         })
 
         if(socket.user_id) {
@@ -52,6 +68,7 @@ export class SocketService {
 
 export interface ISocketInfo {
     user_id: string;
+    room_id: string;
 }
 
 export interface IWebSocket extends WebSocket, ISocketInfo {}

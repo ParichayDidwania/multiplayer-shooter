@@ -1,16 +1,21 @@
 import Phaser, { Game } from "phaser";
+import { Events } from "./events";
 
 const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
 
-let speed = 0.2;
+let shot_id = 0;
+let map_shot_id = 0;
+// let speed = 0.2;
+let bulletMap: any = {};
+let speed = 1;
 let diag_speed = speed / 1.414
 let player : any;
 let wasd : any;
 let enemies : any = {};
-let labels: any = {};
+let allies : any = {};
 let ws: any;
-let username: string | null;
+let username: string;
 let isStarted = false;
 let projectiles: any;
 let handle_angle = Math.PI/2;
@@ -18,10 +23,13 @@ let handle_distance = 16
 let shapes: any;
 let gun_angle = 0.34
 let gun_distance = 48;
-let bulletVelocity = 5;
+let bulletVelocity = 1000;
 let vision: any;
+let event: Events;
+
+let playerSpawn: any;
+let playerTeam: string;
 class GameScene extends Phaser.Scene {
-    bullet: any;
     constructor() {
         super({
             key: "GameScene"
@@ -77,7 +85,7 @@ class GameScene extends Phaser.Scene {
         let bounds = this.matter.world.setBounds(map.widthInPixels, map.heightInPixels);
         Object.values(bounds.walls).forEach(o => o.label = 'bounds');
 
-        player = createPlayer(username ?? "UNNAMED", Category.SELF);
+        player = createPlayer(username ?? "UNNAMED", Category.SELF, playerSpawn.pos_x, playerSpawn.pos_y, playerSpawn.angle);
 
         vision = this.add.image(player.x, player.y, 'vision').setOrigin(0.5, 0.5);
         vision.scale = 1;
@@ -90,11 +98,17 @@ class GameScene extends Phaser.Scene {
         
         this.matter.world.on('collisionstart', function (event: any, bodyA: any, bodyB: any) {
             if(bodyA.label == 'bounds' && bodyB.label == 'bullet') {
+                delete bulletMap[bodyB.map_shot_id];
                 bodyB.gameObject.destroy();
-            }
+            } else if (bodyB.label == 'bullet' && bodyA.label == 'player') {
+                if (bodyB.uid == username && bodyA.playerType == Label.ENEMY) {
+                    sendHit(bodyA.uid, bodyB.shot_id);
+                }
 
-            if((bodyA.label == Label.ENEMY || bodyA.label == Label.ALLY) && bodyB.label == 'bullet') {
-                bodyB.gameObject.destroy();
+                if(bodyB.uid != bodyA.uid) {
+                    delete bulletMap[bodyB.map_shot_id];
+                    bodyB.gameObject.destroy();
+                }
             }
         });
 
@@ -157,6 +171,11 @@ class GameScene extends Phaser.Scene {
             vision.x = player.x,
             vision.y = player.y
         }
+
+        for(let bulletId in bulletMap) {
+            bulletMap[bulletId].x += bulletMap[bulletId].body.velocityX * (delta/1000);
+            bulletMap[bulletId].y += bulletMap[bulletId].body.velocityY * (delta/1000);
+        }
         
         // activity_detected = (2 * xMovement) + yMovement != 0 ? true : false;
     }
@@ -174,9 +193,10 @@ const config = {
       default: 'matter',
       matter: {
             gravity: {
-                y: 0
+                y: 0,
+                x: 0
             },
-            debug: false
+            debug: true
         }
     },
     width: 1000,
@@ -186,9 +206,13 @@ const config = {
     scene: [GameScene]
 }
 
-function add_enemy(uid: string, x: number, y: number) {
-    let sprite = createPlayer(uid, Category.ENEMY, x, y);
-    enemies[uid] = sprite;  
+function add_player(uid: string, x: number, y: number, category: Category) {
+    let sprite = createPlayer(uid, category, x, y);
+    if(category == Category.ENEMY) {
+        enemies[uid] = sprite;  
+    } else {
+        allies[uid] = sprite;
+    }
     return sprite
 }
 
@@ -197,30 +221,38 @@ function add_label(uid: string, x: number, y: number, category: Category) {
     return scene.add.text(x, y - 60, uid, { fontSize: 20, color: category == Category.ENEMY ? '#ff0000' : '#00ff00' }).setOrigin(0.5, 0.5)
 }
 
-function renderEnemy(uid: string, x: number, y: number, angle: number) {
+export function renderPlayer(uid: string, x: number, y: number, angle: number, team: string) {
     let scene = game.scene.scenes[0];
-    let enemy;
-    if (enemies[uid] != undefined) {
-        enemy = enemies[uid];
+    let player;
+    if(team != playerTeam) {
+        if (enemies[uid] != undefined) {
+            player = enemies[uid];
+        } else {
+            player = add_player(uid, x, y, Category.ENEMY);
+        }
     } else {
-        enemy = add_enemy(uid, x, y);
+        if(allies[uid] != undefined) {
+            player = allies[uid];
+        } else {
+            player = add_player(uid, x, y, Category.ALLY);
+        }
     }
 
-    if(enemy.x != x || enemy.y != y || enemy.rotation != angle) {
-        let x_pos = [enemy.x, x];
-        let y_pos = [enemy.y, y];
-        let shortestAngle = Phaser.Math.Angle.ShortestBetween(Phaser.Math.RadToDeg(enemy.rotation), Phaser.Math.RadToDeg(angle));
+    if(player.x != x || player.y != y || player.rotation != angle) {
+        let x_pos = [player.x, x];
+        let y_pos = [player.y, y];
+        let shortestAngle = Phaser.Math.Angle.ShortestBetween(Phaser.Math.RadToDeg(player.rotation), Phaser.Math.RadToDeg(angle));
         let shortestRotation = Phaser.Math.DegToRad(shortestAngle);
-        let angle_arr = [enemy.rotation, enemy.rotation + shortestRotation]
-        enemy.incr = 0;
-        if(enemy.timer) {
-            enemy.timer.destroy();
+        let angle_arr = [player.rotation, player.rotation + shortestRotation]
+        player.incr = 0;
+        if(player.timer) {
+            player.timer.destroy();
         }
-        enemy.timer = scene.time.addEvent({
+        player.timer = scene.time.addEvent({
             delay: 10,
             loop: true,
             callback: interpolate,
-            args: [enemy, x_pos, y_pos, angle_arr]
+            args: [player, x_pos, y_pos, angle_arr]
         })
     }
 }
@@ -240,20 +272,28 @@ function interpolate(player: any, x_pos: any, y_pos: any, angle_arr: any) {
     }
 }
 
-function sendShoot(pointer_x: number, pointer_y: number, angle: number) {
+function sendHit(enemyUid: string, shot_id: number) {
+    ws.send(JSON.stringify({
+        event_name: "HIT",
+        uid: username,
+        enemyUid: enemyUid,
+        shot_id: shot_id
+    }))
+}
+
+function sendShoot(pointer_x: number, pointer_y: number, angle: number, shot_id: number, uid: string) {
     ws.send(JSON.stringify({
         event_name: "SHOOT",
-        uid: username,
-        pointer_x: pointer_x,
-        pointer_y: pointer_y,
+        id: shot_id,
+        uid: uid,
+        x: pointer_x,
+        y: pointer_y,
         angle: angle
     }))
 }
 
-function renderBullets(uid: string, pointer_x: number, pointer_y: number, angle: number) {
-    if (enemies[uid] != undefined) {
-        shoot(pointer_x, pointer_y, angle);
-    }
+export function renderBullets(x: number, y: number, angle: number, uid: string) {
+    shoot(x, y, angle, undefined, uid);
 }
 
 let game: Phaser.Game;
@@ -268,7 +308,7 @@ function send_pose(player: any) {
     }))
 }
 
-function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200) {
+function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200, angle: number = Math.PI) {
     let scene = game.scene.scenes[0];
     let localLabel;
     switch(category) {
@@ -283,11 +323,14 @@ function createPlayer(uid: string, category: Category, x: number = 200, y: numbe
             break;
     }
 
-    shapes.shooter2.fixtures[0].label = localLabel;
+    shapes.shooter2.fixtures[0].label = 'player';
+    shapes.shooter2.fixtures[0].playerType = localLabel;
+    shapes.shooter2.fixtures[0].uid = uid;
     let player: any = scene.matter.add.sprite(x, y, 'player', undefined, {
         shape: shapes.shooter2,
     });
 
+    player.setRotation(angle)
     player.label = add_label(uid, x, y, category);
     
     player.body.immovable = true;
@@ -302,6 +345,8 @@ function createPlayer(uid: string, category: Category, x: number = 200, y: numbe
 }
 
 function shootPreprocess(player: any) {
+    shot_id ++;
+
     let angle = player.rotation;
     var pointX = player.x + gun_distance * Math.cos(angle + gun_angle);
     var pointY = player.y + gun_distance * Math.sin(angle + gun_angle);
@@ -309,54 +354,65 @@ function shootPreprocess(player: any) {
     let handleY = player.y + handle_distance * Math.sin(angle + handle_angle);
     let processedAngle = Phaser.Math.Angle.Between(handleX, handleY, pointX, pointY);
     
-    shoot(pointX, pointY, processedAngle);
+    shoot(pointX, pointY, processedAngle, shot_id, username);
 
-    sendShoot(pointX, pointY, processedAngle);
+    sendShoot(pointX, pointY, processedAngle, shot_id, username);
 }
 
-function shoot(pointX: number, pointY: number, processedAngle: number, ) {
+function shoot(pointX: number, pointY: number, processedAngle: number, shot_id: number | undefined = undefined, uid: string | undefined = undefined) {
     let scene: any = game.scene.scenes[0];
     let vx = Math.cos(processedAngle) * bulletVelocity;
-    let vy = Math.sin(processedAngle) * bulletVelocity
-    scene.bullet = scene.matter.add.image(
+    let vy = Math.sin(processedAngle) * bulletVelocity;
+    let bullet: any = scene.matter.add.sprite(
         pointX,
         pointY,
         "projectile",
         undefined,
-        { friction: 0, frictionAir: 0.001, label: "bullet" }
+        { friction: 0, frictionAir: 0, frictionStatic: 0, label: "bullet", isSensor: true }
     ).setOrigin(0.5, 0.5);
-    scene.bullet.setRotation(processedAngle - Math.PI)
-    scene.bullet.setScale(1.2, 1.2)
-    scene.bullet.setVelocityX(vx);
-    scene.bullet.setVelocityY(vy);
+    map_shot_id ++;
+    bullet.body.shot_id = shot_id;
+    bullet.body.map_shot_id = map_shot_id;
+    bullet.body.uid = uid;
+    bullet.body.velocityX = vx;
+    bullet.body.velocityY = vy;
+    bullet.setRotation(processedAngle - Math.PI)
+    bullet.setScale(1.2, 1.2);
+    bulletMap[map_shot_id] = bullet;
 }
 
 window.onload = () => {
-    username = prompt('Enter username!')
+    username = prompt('Enter username!') ?? "null"
     ws = new WebSocket(`ws://localhost:7000?user=${username}`);
+
+    ws.addEventListener("error", (event: any) => {
+        alert(`Error: ${JSON.stringify(event)}`);
+    });
+    
     ws.onopen = () => {
-        game = new Phaser.Game(config);
+        // startGame({pos_x: 200, pos_y: 200, angle: Math.PI}, 'TERRORIST');
+        event = new Events(ws, username);
     }
 
     ws.onmessage = (message: any) => {
         try {
-            if(isStarted) {
-                let parsedEvent = JSON.parse(message.data.toString());
-                switch(parsedEvent.event_name) {
-                    case 'POSITION':
-                        renderEnemy(parsedEvent.uid, parsedEvent.x, parsedEvent.y, parsedEvent.angle);
-                        break;
-
-                    case 'SHOOT':
-                        renderBullets(parsedEvent.uid, parsedEvent.pointer_x, parsedEvent.pointer_y, parsedEvent.angle);
-                        break;
-                }
-            }
+            let parsedEvent = JSON.parse(message.data.toString());
+            event.handleEvents(parsedEvent);
         } catch(e) {
             console.log(e);
         } 
     }
 };
+
+export function startGame(spawn: any, team: string) {
+    playerSpawn = spawn;
+    playerTeam = team;
+    game = new Phaser.Game(config);
+}
+
+export function isInit() {
+    return isStarted;
+}
 
 enum Category {
     SELF = 0,
