@@ -19,15 +19,20 @@ export type User = {
     isAlive: boolean
     isAdmin: boolean,
     status: ConnectionStatus,
-    shots: Shot[]
+    shots: Shot[],
+    spawn: UserSpawnPoint
 }
 
 export enum State {
     CREATED = 'CREATED',
     MATCH_STARTED = 'MATCH_STARTED',
-    ROUND_STARTED = 'ROUND_STARTED',
-    ROUND_ENDED = 'ROUND_ENDED',
     MATCH_ENDED = 'MATCH_ENDED'
+}
+
+export type UserSpawnPoint = {
+    x: number,
+    y: number,
+    angle: number,
 }
 
 export type SpawnPoint = {
@@ -51,12 +56,19 @@ export type Shot = {
     timestamp: number
 }
 
+export type Round = {
+    id: number,
+    winner?: Team
+}
+
 export type Room = {
     state: State,
     users: Record<string, User>,
-    round: number,
+    rounds: Round[],
     isBombPlanted: boolean,
     spawnPoints: SpawnPoints,
+    current_round: number,
+    current_round_start_timestamp: number
 }
 
 export type Rooms = Record<string, Room>;
@@ -65,8 +77,12 @@ export enum GAMECONSTANTS {
     TIME_LIMIT = 120, // In Seconds,
     MAX_HEALTH = 100,
     MAX_BULLET_BUFFER = 10,
-    BULLET_VELOCITY = 1000,
-    HIT_REG_RADIUS = 50
+    BULLET_VELOCITY = 500,
+    HIT_REG_RADIUS = 50,
+    SHOT_DAMAGE = 25,
+    TEAM_SIZE = 5,
+    MAX_ROUNDS = 5,
+    ROUND_TIME = 30
 }
 
 export const SPAWNS = {

@@ -1,4 +1,4 @@
-import { isInit, renderBullets, renderPlayer, startGame } from "./client";
+import { isInit, renderBullets, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
 
 export class Events {
     socket: WebSocket;
@@ -30,7 +30,7 @@ export class Events {
 
             case 'ROOM_DATA':
                 this.unsetTeamSelection();
-                this.setPreMatchData(event.room);
+                this.setPreMatchData(event.room, event.time_left);
                 break;
 
             case 'POSITION':
@@ -43,6 +43,14 @@ export class Events {
                 if(event.uid != this.uid && isInit()) {
                     renderBullets(event.x, event.y, event.angle, event.uid);
                 }
+                break;
+            
+            case 'HEALTH':
+                updateHealth(event.uid, event.team, event.health, event.isAlive);
+                break;
+
+            case 'END_ROUND':
+                renderRoundWinner(event.winner);
                 break;
         }
     }
@@ -125,7 +133,7 @@ export class Events {
         fieldSet.innerHTML = ``
     }
 
-    setPreMatchData(room: any) {
+    setPreMatchData(room: any, time_left: number) {
         if(room.state == 'MATCH_STARTED') {
             this.unsetPreMatchData();
             let user = room.users[this.uid]
@@ -134,7 +142,8 @@ export class Events {
                 pos_y: user.pos_y,
                 angle: user.angle
             }
-            startGame(spawn, this.team);
+            let score = this.calculateMatchScore(room);
+            startGame(spawn, this.team, room.users, score, time_left);
         } else if (room.state == 'CREATED') {
             let div : any = document.getElementById('pre-match');
             let playerList = '';
@@ -182,5 +191,19 @@ export class Events {
         let div : any = document.getElementById('pre-match');
         div.innerHTML = '';
         div.style.visibility = 'hidden';
+    }
+
+    calculateMatchScore(room: any) {
+        let score: any = {
+            TERRORIST: 0,
+            COUNTER_TERRORIST: 0
+        }
+        for(let round of room.rounds) {
+            if(round.winner) {
+                score[round.winner]++;
+            }
+        }
+
+        return score;
     }
 }

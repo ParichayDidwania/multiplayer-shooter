@@ -6,8 +6,8 @@ export class EventManager {
     socketRooms: Record<string, Array<IWebSocket>>
 
     constructor() {
-        this.engine = new Engine();
         this.socketRooms = {};
+        this.engine = new Engine(this.socketRooms);
     }
 
     handleEvents(socket: IWebSocket, message: any, socketList: Set<IWebSocket>) {
@@ -47,7 +47,10 @@ export class EventManager {
                 break;
 
             case "HIT":
-                this.engine.validateHit(socket.room_id, socket.user_id, message.enemyUid, message.shot_id);
+                let healthObj = this.engine.validateHit(socket.room_id, socket.user_id, message.enemyUid, message.shot_id);
+                if(healthObj) {
+                    this.broadcastHealth(socket.room_id, healthObj.uid, healthObj.team, healthObj.health, healthObj.isAlive);
+                }
                 break;
         }
     }
@@ -66,7 +69,8 @@ export class EventManager {
         for(let socket of socketRoom) {
             socket.send(JSON.stringify({
                 event_name: "ROOM_DATA",
-                room: room
+                room: room,
+                time_left: Math.floor((new Date().getTime() - room.current_round_start_timestamp)/1000)
             }))
         }
     }
@@ -94,6 +98,19 @@ export class EventManager {
                 x: x,
                 y: y,
                 angle: angle,
+            }))
+        }
+    }
+
+    broadcastHealth(room_id: string, uid: string, team: Team, health: number, isAlive: boolean) {
+        let socketRoom = this.socketRooms[room_id];
+        for(let socket of socketRoom) {
+            socket.send(JSON.stringify({
+                event_name: "HEALTH",
+                uid: uid,
+                team: team,
+                health: health,
+                isAlive: isAlive
             }))
         }
     }

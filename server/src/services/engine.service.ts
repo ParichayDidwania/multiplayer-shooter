@@ -1,15 +1,23 @@
 import { ConnectionStatus, GAMECONSTANTS, Room, Rooms, SPAWNS, Shot, SpawnPoint, State, Team, User } from "../dtos/engine.dto";
+import { IWebSocket } from "./socket.service";
 
 export class Engine {
     private rooms: Rooms = {};
+    socketRooms: Record<string, Array<IWebSocket>>
+
+    constructor(socketRooms: Record<string, Array<IWebSocket>>) {
+        this.socketRooms = socketRooms;
+    }
 
     createRoomData() {
         let room : Room = {
             state: State.CREATED,
             users: {},
-            round: 0,
+            rounds: [],
             isBombPlanted: false,
-            spawnPoints: SPAWNS,
+            spawnPoints: JSON.parse(JSON.stringify(SPAWNS)),
+            current_round: 0,
+            current_round_start_timestamp: 0
         } 
         
         return room;
@@ -46,7 +54,12 @@ export class Engine {
             isAlive: true,
             isAdmin: isAdmin,
             status: ConnectionStatus.CONNECTED,
-            shots: []
+            shots: [],
+            spawn: {
+                x: -1,
+                y: -1,
+                angle: 0
+            }
         }
         room.users[uid] = user;
     }
@@ -82,6 +95,10 @@ export class Engine {
                 user.angle = point.angle;
                 point.isTaken = true;
                 point.by = uid;
+
+                user.spawn.x = point.x;
+                user.spawn.y = point.y;
+                user.spawn.angle = point.angle;
 
                 pointFound = true;
                 break;
@@ -148,6 +165,19 @@ export class Engine {
         }
 
         room.state = State.MATCH_STARTED;
+        this.updateRoundData(room);
+        room.current_round_start_timestamp = new Date().getTime();
+    }
+
+    updateRoundData(room: Room) {
+        room.current_round += 1;
+        room.rounds.push({ id: room.current_round });
+    }
+
+    startRoundTimer(room_id: string) {
+        setTimeout(() => {
+            // end match
+        }, GAMECONSTANTS.ROUND_TIME)
     }
 
     disconnectUser(room_id: string, uid: string) {
@@ -254,14 +284,102 @@ export class Engine {
         let enemy = room.users[enemyUid];
         let dist = this.getDistanceBetweenPoints(bulletCoords.x, bulletCoords.y, enemy.pos_x, enemy.pos_y);
 
+
         if(dist <= GAMECONSTANTS.HIT_REG_RADIUS) {
-            console.log('HIT');
-        } else {
-            console.log('MISS');
+            enemy.health -= GAMECONSTANTS.SHOT_DAMAGE;
+            if(enemy.health <= 0) {
+                enemy.isAlive = false;
+                enemy.health = 0;
+                this.checkRoundStatus(room_id);
+            }
+            return { uid: enemyUid, team: enemy.team, health: enemy.health, isAlive: enemy.isAlive };
         }
     }
 
     getDistanceBetweenPoints(x1: number, y1: number, x2: number, y2: number) {
         return Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
+    }
+
+    checkRoundStatus(room_id: string) {
+        let room = this.rooms[room_id];
+        let ctKilled = 0;
+        let tKilled = 0;
+
+        let ctTotal = 0;
+        let tTotal = 0;
+
+        for(let userId in room.users) {
+            let user = room.users[userId];
+            switch(user.team) {
+                case Team.COUNTER_TERRORIST:
+                    if(!user.isAlive) {
+                        ctKilled ++;
+                    }
+                    ctTotal ++;
+                    break;
+                
+                case Team.TERRORIST:
+                    if(!user.isAlive) {
+                        tKilled ++;
+                    }
+                    tTotal ++;
+                    break;
+            }
+        }
+        if(ctKilled == ctTotal) {
+            this.endRound(room_id, Team.TERRORIST);
+        } else if(tKilled == tTotal) {
+            this.endRound(room_id, Team.COUNTER_TERRORIST);
+        }
+    }
+
+    resetPlayerStats(room: Room) {
+        for(let userId in room.users) {
+            let user = room.users[userId];
+            user.pos_x = user.spawn.x;
+            user.pos_y = user.spawn.y;
+            user.angle = user.spawn.angle;
+            user.health = GAMECONSTANTS.MAX_HEALTH
+            user.isAlive = true;
+        }
+    }
+
+    endRound(room_id: string, winner: Team) {
+        if(!this.checkIfRoomExists(room_id)) {
+            throw new Error('Room does not exist');
+        }
+
+        let room = this.rooms[room_id];
+        room.rounds[room.current_round - 1].winner = winner;
+
+        this.broadcastEndRound(room_id);
+    }
+
+    broadcastEndRound(room_id: string) {
+        if(!this.checkIfRoomExists(room_id)) {
+            throw new Error('Room does not exist');
+        }
+        let room = this.rooms[room_id];
+        for(let socket of this.socketRooms[room_id]) {
+            socket.send(JSON.stringify({
+                event_name: 'END_ROUND',
+                winner: room.rounds[room.current_round - 1].winner
+            }))
+        }
+
+        setTimeout(() => {
+            this.broadcastRoomData(room, this.socketRooms[room_id]);
+        }, 5000)
+    }
+
+    broadcastRoomData(room: Room, socketRoom: IWebSocket[]) {
+        this.resetPlayerStats(room);
+        this.updateRoundData(room);
+        for(let socket of socketRoom) {
+            socket.send(JSON.stringify({
+                event_name: "ROOM_DATA",
+                room: room
+            }))
+        }
     }
 }
