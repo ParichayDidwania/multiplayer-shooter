@@ -42,6 +42,10 @@ let bulletLeft = MAX_BULLETS;
 let reloadTimeout: any;
 let bulletInfoLabel: any;
 let reloadBtn: any;
+let bombDropBtn: any;
+let bomb_coords: any = {};
+let bomb: any;
+let bombBtnCooldown = 0;
 class GameScene extends Phaser.Scene {
     constructor() {
         super({
@@ -54,6 +58,9 @@ class GameScene extends Phaser.Scene {
     }
 
     preload(): void {
+        this.load.image('player-ct', 'assets/sprites/shooter-ct.png');
+        this.load.image('player-t', 'assets/sprites/shooter-t.png');
+        this.load.image('player-t-bomb', 'assets/sprites/shooter-t-bomb.png');
         this.load.image('player', playerSprite);
         this.load.image('projectile', bulletSprite);
         this.load.image('projectile-ct', 'assets/sprites/bullet-ct.png')
@@ -67,6 +74,7 @@ class GameScene extends Phaser.Scene {
         this.load.image('health', 'assets/sprites/health.png');
         this.load.image('tomb', 'assets/sprites/tomb.png')
         this.load.image('gun', 'assets/sprites/gun.png')
+        this.load.image('bomb', 'assets/sprites/bomb.png')
     }
       
     create(): void {
@@ -77,7 +85,7 @@ class GameScene extends Phaser.Scene {
         const tileset: any = map.addTilesetImage('wall', 'tile');
 
         const floorlayer: any = floorMap.createLayer('floormap', floorset);
-        floorlayer.setDepth(-2);
+        floorlayer.setDepth(-3);
         const layer: any = map.createLayer('Obs', tileset);
         map.setCollisionBetween(1, 1); 
         map.setCollisionByProperty({ collides: true });
@@ -104,11 +112,12 @@ class GameScene extends Phaser.Scene {
         let bounds = this.matter.world.setBounds(map.widthInPixels, map.heightInPixels);
         Object.values(bounds.walls).forEach(o => o.label = 'bounds');
 
-        player = createPlayer(username ?? "UNNAMED", Category.SELF, playerSpawn.pos_x, playerSpawn.pos_y, playerSpawn.angle, initialPlayerData[username].health);
+        player = createPlayer(username ?? "UNNAMED", Category.SELF, playerSpawn.pos_x, playerSpawn.pos_y, playerSpawn.angle, initialPlayerData[username].health, playerTeam);
         isAlive = true;
         healthBar = makeBar.call(this, 5, this.cameras.main.height - 100, 0xc0c0c0);
         makeScoreUI.call(this)
         gunUI.call(this);
+        renderBomb();
 
         vision = this.add.image(player.x, player.y, 'vision').setOrigin(0.5, 0.5);
         vision.scale = 1;
@@ -117,7 +126,6 @@ class GameScene extends Phaser.Scene {
 
         rt.mask = new Phaser.Display.Masks.BitmapMask(this, vision);
         rt.mask.invertAlpha = true
-
         
         this.matter.world.on('collisionstart', function (event: any, bodyA: any, bodyB: any) {
             if(bodyA.label == 'bounds' && bodyB.label == 'bullet') {
@@ -132,6 +140,15 @@ class GameScene extends Phaser.Scene {
                     delete bulletMap[bodyB.map_shot_id];
                     bodyB.gameObject.destroy();
                 }
+            } else if (bodyA.label == 'bullet' && bodyB.label == 'player') {
+                if (bodyA.uid == username && bodyB.playerType == Label.ENEMY) {
+                    sendHit(bodyB.uid, bodyA.shot_id);
+                }
+
+                if(bodyA.uid != bodyB.uid) {
+                    delete bulletMap[bodyA.map_shot_id];
+                    bodyA.gameObject.destroy();
+                }
             }
         });
 
@@ -139,11 +156,13 @@ class GameScene extends Phaser.Scene {
 
         wasd = this.input.keyboard?.addKeys({ 'W': Phaser.Input.Keyboard.KeyCodes.W, 'S': Phaser.Input.Keyboard.KeyCodes.S, 'A': Phaser.Input.Keyboard.KeyCodes.A, 'D': Phaser.Input.Keyboard.KeyCodes.D });
         reloadBtn = this.input.keyboard?.addKeys({ 'R': Phaser.Input.Keyboard.KeyCodes.R });
+        bombDropBtn = this.input.keyboard?.addKeys({ 'G': Phaser.Input.Keyboard.KeyCodes.G });
         wasd.check_pressed_up = function () { return this.W.isDown };
         wasd.check_pressed_down = function () { return this.S.isDown };
         wasd.check_pressed_left = function () { return this.A.isDown };
         wasd.check_pressed_right = function () { return this.D.isDown };
-        reloadBtn.isReloadPressed = function() { return this.R.isDown }
+        reloadBtn.isReloadPressed = function() { return this.R.isDown };
+        bombDropBtn.isDropPressed = function() { return this.G.isDown };
 
         this.input.on('pointermove',  (pointer: any) => {
             if(isAlive) {
@@ -211,6 +230,17 @@ class GameScene extends Phaser.Scene {
             if(reloadBtn.isReloadPressed() && !reloadTimeout && bulletLeft != MAX_BULLETS) {
                 reload();
             }
+
+            bombBtnCooldown += delta;
+
+            if(bombDropBtn.isDropPressed() && bombBtnCooldown > 250) {
+                bombBtnCooldown = 0;
+                if(player.hasBomb) {
+                    sendBombDrop();
+                } else if (playerTeam == 'TERRORIST' && this.matter.overlap(bomb, player)) {
+                    sendBombPicked();
+                }
+            }
         }
 
         for(let bulletId in bulletMap) {
@@ -252,6 +282,11 @@ function makeBar(this: any, x: number, y: number, color: number) {
     bar.x = 50;
     bar.y = topRight.y + 25;
     return bar;
+}
+
+function renderBomb() {
+    let scene = game.scene.scenes[0];
+    bomb = scene.matter.add.image(bomb_coords.x, bomb_coords.y, 'bomb', undefined, { label: 'bomb' }).setOrigin(0.5, 0.5).setDepth(102).setSensor(true).setDepth(-1);
 }
 
 
@@ -316,8 +351,8 @@ const config = {
     scene: [GameScene]
 }
 
-function add_player(uid: string, x: number, y: number, category: Category, angle: number, health: number) {
-    let sprite = createPlayer(uid, category, x, y, angle, health);
+function add_player(uid: string, x: number, y: number, category: Category, angle: number, health: number, team: string) {
+    let sprite = createPlayer(uid, category, x, y, angle, health, team);
     if(category == Category.ENEMY) {
         enemies[uid] = sprite;  
     } else {
@@ -338,13 +373,13 @@ export function renderPlayer(uid: string, x: number, y: number, angle: number, t
         if (enemies[uid] != undefined) {
             player = enemies[uid];
         } else {
-            player = add_player(uid, x, y, Category.ENEMY, angle, health);
+            player = add_player(uid, x, y, Category.ENEMY, angle, health, team);
         }
     } else {
         if(allies[uid] != undefined) {
             player = allies[uid];
         } else {
-            player = add_player(uid, x, y, Category.ALLY, angle, health);
+            player = add_player(uid, x, y, Category.ALLY, angle, health, team);
         }
     }
 
@@ -405,6 +440,18 @@ function interpolate(player: any, x_pos: any, y_pos: any, angle_arr: any) {
     }
 }
 
+function sendBombPicked() {
+    ws.send(JSON.stringify({
+        event_name: "BOMB_PICKED",
+    }))
+}
+
+function sendBombDrop() {
+    ws.send(JSON.stringify({
+        event_name: "BOMB_DROPPED",
+    }))
+}
+
 function sendHit(enemyUid: string, shot_id: number) {
     ws.send(JSON.stringify({
         event_name: "HIT",
@@ -423,6 +470,40 @@ function sendShoot(pointer_x: number, pointer_y: number, angle: number, shot_id:
         y: pointer_y,
         angle: angle
     }))
+}
+
+export function bombPicked(uid: string) {
+    bomb.body.gameObject.destroy();
+    if(uid == username) {
+        player.setTexture('player-t-bomb');
+        player.hasBomb = true;
+    } else {
+        if(playerTeam == 'TERRORIST') {
+            allies[uid].setTexture('player-t-bomb');
+            allies[uid].hasBomb = true;
+        } else {
+            enemies[uid].setTexture('player-t-bomb');
+            enemies[uid].hasBomb = true;
+        }
+    }
+}
+
+export function bombDropped(uid: string, x: number, y: number) {
+    bomb_coords.x = x;
+    bomb_coords.y = y;
+    if(uid == username) {
+        player.setTexture('player-t');
+        player.hasBomb = false;
+    } else {
+        if(playerTeam == 'TERRORIST') {
+            allies[uid].setTexture('player-t');
+            allies[uid].hasBomb = false;
+        } else {
+            enemies[uid].setTexture('player-t');
+            enemies[uid].hasBomb = false;
+        }
+    }
+    renderBomb();
 }
 
 export function renderBullets(x: number, y: number, angle: number, uid: string, team: string) {
@@ -460,7 +541,7 @@ function killPlayer(sprite: any, uid: string, team: string) {
     sprite.setScale(0.1, 0.1)
     sprite.setTexture('tomb');
     scene.matter.world.remove(sprite);
-    sprite.setDepth(-1);
+    sprite.setDepth(-2);
     sprite.setRotation(0);
 }
 
@@ -476,7 +557,7 @@ function send_pose(player: any) {
     }))
 }
 
-function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200, angle: number = Math.PI, health: number) {
+function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200, angle: number = Math.PI, health: number, team: string) {
     let scene = game.scene.scenes[0];
     let localLabel;
     switch(category) {
@@ -491,10 +572,18 @@ function createPlayer(uid: string, category: Category, x: number = 200, y: numbe
             break;
     }
 
+    let sprite: any;
+    if(team == 'COUNTER_TERRORIST') {
+        sprite = 'player-ct';
+    } else {
+        sprite = 'player-t';
+    }
+
     shapes.shooter2.fixtures[0].label = 'player';
     shapes.shooter2.fixtures[0].playerType = localLabel;
     shapes.shooter2.fixtures[0].uid = uid;
-    let player: any = scene.matter.add.sprite(x, y, 'player', undefined, {
+    shapes.shooter2.fixtures[0].team = team;
+    let player: any = scene.matter.add.sprite(x, y, sprite, undefined, {
         shape: shapes.shooter2,
     });
 
@@ -510,7 +599,8 @@ function createPlayer(uid: string, category: Category, x: number = 200, y: numbe
     player.setScale(0.4, 0.4);
     player.last_shot = 0;
     player.active = true;
-    
+    player.hasBomb = false;
+
     return player;
 }
 
@@ -579,26 +669,30 @@ window.onload = () => {
     ws.onopen = () => {
         let playerData: any = {}
         playerData[username] = 100;
-        startGame({pos_x: 200, pos_y: 200, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20);
-        // event = new Events(ws, username);
+        // startGame({pos_x: 1800, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
+        event = new Events(ws, username);
     }
 
     ws.onmessage = (message: any) => {
         try {
             let parsedEvent = JSON.parse(message.data.toString());
-            // event.handleEvents(parsedEvent);
+            event.handleEvents(parsedEvent);
         } catch(e) {
             console.log(e);
         } 
     }
 };
 
-export function startGame(spawn: any, team: string, users: any, score: any, time_left: number) {
+export function startGame(spawn: any, team: string, users: any, score: any, time_left: number, bomb: any) {
     playerSpawn = spawn;
     playerTeam = team;
     scoreBoard = score;
     initialPlayerData = users;
     roundTimeLeft = time_left;
+    bomb_coords = {
+        x: bomb.x,
+        y: bomb.y
+    }
     if(game) {
         enemies = {};
         allies = {};

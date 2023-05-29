@@ -54,6 +54,14 @@ export class EventManager {
                     this.broadcastHealth(socket.room_id, healthObj.uid, healthObj.team, healthObj.health, healthObj.isAlive);
                 }
                 break;
+
+            case "BOMB_PICKED":
+                this.engine.pickBomb(socket.room_id, socket.user_id);
+                break;
+
+            case "BOMB_DROPPED":
+                this.engine.dropBomb(socket.room_id, socket.user_id);
+                break;
         }
     }
 

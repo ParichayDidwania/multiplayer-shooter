@@ -1,4 +1,4 @@
-import { isInit, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
+import { bombDropped, bombPicked, isInit, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
 
 export class Events {
     socket: WebSocket;
@@ -59,6 +59,14 @@ export class Events {
 
             case 'END_MATCH':
                 renderMatchWinner(event.winner);
+                break;
+
+            case 'BOMB_PICKED':
+                bombPicked(event.uid);
+                break;
+
+            case 'BOMB_DROPPED':
+                bombDropped(event.uid, event.x, event.y);
                 break;
         }
     }
@@ -152,7 +160,7 @@ export class Events {
                 angle: user.angle
             }
             let score = this.calculateMatchScore(room);
-            startGame(spawn, this.team, room.users, score, time_left);
+            startGame(spawn, this.team, room.users, score, time_left, room.bomb);
         } else if (room.state == 'CREATED') {
             let div : any = document.getElementById('pre-match');
             let playerList = '';

@@ -23,6 +23,16 @@ export type User = {
     spawn: UserSpawnPoint
 }
 
+export type Bomb = {
+    x: number, 
+    y: number,
+    isPicked: {
+        value: boolean,
+        by?: string
+    },
+    isPlanted: boolean
+}
+
 export enum State {
     CREATED = 'CREATED',
     MATCH_STARTED = 'MATCH_STARTED',
@@ -68,7 +78,8 @@ export type Room = {
     isBombPlanted: boolean,
     spawnPoints: SpawnPoints,
     current_round: number,
-    current_round_start_timestamp: number
+    current_round_start_timestamp: number,
+    bomb: Bomb
 }
 
 export type Rooms = Record<string, Room>;
@@ -83,6 +94,11 @@ export enum GAMECONSTANTS {
     TEAM_SIZE = 5,
     MAX_ROUNDS = 5,
     ROUND_TIME = 30
+}
+
+export const bombCoords = {
+    x: 1700,
+    y: 1700
 }
 
 export const SPAWNS = {

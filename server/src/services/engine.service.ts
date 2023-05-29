@@ -1,4 +1,4 @@
-import { ConnectionStatus, GAMECONSTANTS, Room, Rooms, SPAWNS, Shot, SpawnPoint, State, Team, User } from "../dtos/engine.dto";
+import { ConnectionStatus, GAMECONSTANTS, Room, Rooms, SPAWNS, Shot, SpawnPoint, State, Team, User, bombCoords } from "../dtos/engine.dto";
 import { IWebSocket } from "./socket.service";
 
 export class Engine {
@@ -17,7 +17,15 @@ export class Engine {
             isBombPlanted: false,
             spawnPoints: JSON.parse(JSON.stringify(SPAWNS)),
             current_round: 0,
-            current_round_start_timestamp: 0
+            current_round_start_timestamp: 0,
+            bomb: {
+                isPicked: {
+                    value: false
+                },
+                isPlanted: false,
+                x: bombCoords.x,
+                y: bombCoords.y
+            }
         } 
         
         return room;
@@ -310,6 +318,9 @@ export class Engine {
             if(enemy.health <= 0) {
                 enemy.isAlive = false;
                 enemy.health = 0;
+                if(room.bomb.isPicked.value && room.bomb.isPicked.by == enemyUid) {
+                    this.broadcastBombDropped(room_id, enemyUid);
+                }
                 this.checkRoundStatus(room_id);
             }
             return { uid: enemyUid, team: enemy.team, health: enemy.health, isAlive: enemy.isAlive };
@@ -374,6 +385,88 @@ export class Engine {
 
         this.broadcastEndRound(room_id);
     }
+
+    pickBomb(room_id: string, uid: string) {
+        if(!this.checkIfRoomExists(room_id)) {
+            throw new Error('Room does not exist');
+        }
+
+        let room = this.rooms[room_id];
+
+        if(!this.checkIfUserExists(room, uid)) {
+            throw new Error('User doesnot exist in the room');
+        }
+
+        if(room.users[uid].team != Team.TERRORIST) {
+            return;
+        }
+
+        if(room.bomb.isPicked.value || room.bomb.isPlanted) {
+            return;
+        }
+
+        room.bomb.isPicked = {
+            value: true,
+            by: uid
+        }
+
+        this.broadcastBombPicked(room_id);
+    }
+
+    broadcastBombPicked(room_id: string) {
+        let room = this.rooms[room_id];
+        for(let socket of this.socketRooms[room_id]) {
+            socket.send(JSON.stringify({
+                event_name: 'BOMB_PICKED',
+                uid: room.bomb.isPicked.by
+            }))
+        }
+    }
+
+    dropBomb(room_id: string, uid: string) {
+        if(!this.checkIfRoomExists(room_id)) {
+            throw new Error('Room does not exist');
+        }
+
+        let room = this.rooms[room_id];
+
+        if(!this.checkIfUserExists(room, uid)) {
+            throw new Error('User doesnot exist in the room');
+        }
+
+        if(room.users[uid].team != Team.TERRORIST) {
+            return;
+        }
+
+        if(!room.bomb.isPicked.value && room.bomb.isPlanted) {
+            return;
+        }
+
+        if(room.bomb.isPicked.by != uid) {
+            return;
+        }
+
+        room.bomb.isPicked = {
+            value: false
+        }
+        room.bomb.x = room.users[uid].pos_x;
+        room.bomb.y = room.users[uid].pos_y;
+        
+        this.broadcastBombDropped(room_id, uid);
+    }
+
+    broadcastBombDropped(room_id: string, uid: string) {
+        let room = this.rooms[room_id];
+        for(let socket of this.socketRooms[room_id]) {
+            socket.send(JSON.stringify({
+                event_name: 'BOMB_DROPPED',
+                uid: uid,
+                x: room.bomb.x,
+                y: room.bomb.y
+            }))
+        }
+    }
+
 
     getMatchWinner(room: Room) {
         let ctWins = 0;
