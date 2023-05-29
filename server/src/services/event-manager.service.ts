@@ -28,24 +28,26 @@ export class EventManager {
 
             case 'SELECTED_TEAM':
                 this.engine.joinTeam(message.room_id, message.uid, message.team);
-                this.broadcastRoomData(message.room_id);
+                this.engine.broadcastRoomData(message.room_id);
                 break;
 
             case 'START_MATCH':
                 this.engine.startMatch(socket.room_id, socket.user_id);
-                this.broadcastRoomData(socket.room_id);
+                this.engine.broadcastRoomData(socket.room_id);
                 break;
 
-            case "POSITION":
+            case "POSITION":{
                 let team = this.engine.updatePosition(socket.room_id, message.uid, message.x, message.y, message.angle);
                 this.broadcastPlayerPosition(socket.room_id, message.uid, message.x, message.y, message.angle, team)
                 break;
+            }
 
-            case  "SHOOT":
-                this.engine.updateShots(socket.room_id, socket.user_id, message.id, message.x, message.y, message.angle);
-                this.broadcastShots(socket.room_id, socket.user_id, message.x, message.y, message.angle);
+            case  "SHOOT":{
+                let team = this.engine.updateShots(socket.room_id, socket.user_id, message.id, message.x, message.y, message.angle);
+                this.broadcastShots(socket.room_id, socket.user_id, message.x, message.y, message.angle, team);
                 break;
-
+            }
+                
             case "HIT":
                 let healthObj = this.engine.validateHit(socket.room_id, socket.user_id, message.enemyUid, message.shot_id);
                 if(healthObj) {
@@ -57,21 +59,18 @@ export class EventManager {
 
     handleDisconnection(socket: IWebSocket) {
         if(socket.room_id && socket.user_id) {
-            this.removeFromSocketRoom(socket);
-            this.engine.disconnectUser(socket.room_id, socket.user_id);
-            this.broadcastRoomData(socket.room_id);
-        }
-    }
-
-    broadcastRoomData(room_id: string) {
-        let room = this.engine.getRoomData(room_id);
-        let socketRoom = this.socketRooms[room_id];
-        for(let socket of socketRoom) {
-            socket.send(JSON.stringify({
-                event_name: "ROOM_DATA",
-                room: room,
-                time_left: Math.floor((new Date().getTime() - room.current_round_start_timestamp)/1000)
-            }))
+            let room = this.engine.getRoomData(socket.room_id);
+            if(!room) {
+                return;
+            }
+            
+            if(room.state == State.CREATED) {
+                this.removeFromSocketRoom(socket);
+                this.engine.disconnectUser(socket.room_id, socket.user_id);
+                this.engine.broadcastRoomData(socket.room_id);
+            } else {
+                // handle match start disconnection
+            }
         }
     }
 
@@ -89,7 +88,7 @@ export class EventManager {
         }
     }
 
-    broadcastShots(room_id: string, uid: string, x: number, y: number, angle: number) {
+    broadcastShots(room_id: string, uid: string, x: number, y: number, angle: number, team: Team) {
         let socketRoom = this.socketRooms[room_id];
         for(let socket of socketRoom) {
             socket.send(JSON.stringify({
@@ -98,6 +97,7 @@ export class EventManager {
                 x: x,
                 y: y,
                 angle: angle,
+                team: team
             }))
         }
     }

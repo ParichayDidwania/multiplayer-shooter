@@ -1,4 +1,4 @@
-import { isInit, renderBullets, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
+import { isInit, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
 
 export class Events {
     socket: WebSocket;
@@ -29,8 +29,10 @@ export class Events {
                 break;
 
             case 'ROOM_DATA':
-                this.unsetTeamSelection();
-                this.setPreMatchData(event.room, event.time_left);
+                if(this.team != 'NONE') {
+                    this.unsetTeamSelection();
+                    this.setPreMatchData(event.room, event.time_left);
+                }
                 break;
 
             case 'POSITION':
@@ -41,16 +43,22 @@ export class Events {
 
             case 'SHOOT':
                 if(event.uid != this.uid && isInit()) {
-                    renderBullets(event.x, event.y, event.angle, event.uid);
+                    renderBullets(event.x, event.y, event.angle, event.uid, event.team);
                 }
                 break;
             
             case 'HEALTH':
-                updateHealth(event.uid, event.team, event.health, event.isAlive);
+                if(isInit()) {
+                    updateHealth(event.uid, event.team, event.health, event.isAlive);
+                }
                 break;
 
             case 'END_ROUND':
                 renderRoundWinner(event.winner);
+                break;
+
+            case 'END_MATCH':
+                renderMatchWinner(event.winner);
                 break;
         }
     }
@@ -67,6 +75,7 @@ export class Events {
     }
 
     sendJoinTeam(team: string) {
+        this.team = team;
         this.socket.send(JSON.stringify({
             event_name: "SELECTED_TEAM",
             uid: this.uid,

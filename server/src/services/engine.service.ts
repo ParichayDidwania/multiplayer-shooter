@@ -40,6 +40,10 @@ export class Engine {
 
         let room = this.rooms[room_id];
 
+        if(room.state != State.CREATED) {
+            throw new Error('Cant join after match start');
+        }
+
         if(this.checkIfUserExists(room, uid)) {
             throw new Error('This Username already exists in the room');
         }
@@ -165,13 +169,12 @@ export class Engine {
         }
 
         room.state = State.MATCH_STARTED;
-        this.updateRoundData(room);
-        room.current_round_start_timestamp = new Date().getTime();
     }
 
     updateRoundData(room: Room) {
         room.current_round += 1;
         room.rounds.push({ id: room.current_round });
+        room.current_round_start_timestamp = new Date().getTime();
     }
 
     startRoundTimer(room_id: string) {
@@ -202,7 +205,22 @@ export class Engine {
                 }
             }
 
-            delete room.users[uid];            
+            let isAdmin = room.users[uid].isAdmin;
+            delete room.users[uid];       
+
+            if(isAdmin) {
+                let adminFound = false;
+                for(let userId in room.users) {
+                    let user = room.users[userId];
+                    user.isAdmin = true;
+                    adminFound = true;
+                    break;
+                }
+
+                if(!adminFound) {
+                    delete this.rooms[room_id];
+                }
+            }
         } else {
             room.users[uid].status = ConnectionStatus.DISCONNECTED;
         }
@@ -252,6 +270,8 @@ export class Engine {
         }
 
         shots.push(shot);
+
+        return room.users[uid].team;
     }
 
     validateHit(room_id: string, uid: string, enemyUid: string, shot_id: number) {
@@ -355,6 +375,33 @@ export class Engine {
         this.broadcastEndRound(room_id);
     }
 
+    getMatchWinner(room: Room) {
+        let ctWins = 0;
+        let tWins = 0;
+        for(let round of room.rounds) {
+            if(round.winner == Team.COUNTER_TERRORIST) {
+                ctWins++;
+            } else if (round.winner == Team.TERRORIST) {
+                tWins++;
+            }
+        }
+
+        let isMatchEnded = false;
+        let winner = Team.NONE;
+
+        if(ctWins == GAMECONSTANTS.MAX_ROUNDS) {
+            isMatchEnded = true;
+            winner = Team.COUNTER_TERRORIST;
+        }
+
+        if(tWins == GAMECONSTANTS.MAX_ROUNDS) {
+            isMatchEnded = true;
+            winner = Team.TERRORIST;
+        }
+
+        return { isMatchEnded, winner };
+    }
+
     broadcastEndRound(room_id: string) {
         if(!this.checkIfRoomExists(room_id)) {
             throw new Error('Room does not exist');
@@ -368,18 +415,41 @@ export class Engine {
         }
 
         setTimeout(() => {
-            this.broadcastRoomData(room, this.socketRooms[room_id]);
+            let { isMatchEnded, winner } = this.getMatchWinner(room);
+            if(isMatchEnded) {
+                room.state = State.MATCH_ENDED
+                this.broadcastMatchEnd(room_id, winner);
+            } else {
+                this.broadcastRoomData(room_id);
+            }
         }, 5000)
     }
 
-    broadcastRoomData(room: Room, socketRoom: IWebSocket[]) {
+    public broadcastRoomData(room_id: string) {
+        let room = this.getRoomData(room_id);
         this.resetPlayerStats(room);
-        this.updateRoundData(room);
-        for(let socket of socketRoom) {
+        if(room.state == State.MATCH_STARTED) {
+            this.updateRoundData(room);
+        }
+        for(let socket of this.socketRooms[room_id]) {
             socket.send(JSON.stringify({
                 event_name: "ROOM_DATA",
-                room: room
+                room: room,
+                time_left: Math.floor((room.current_round_start_timestamp + (GAMECONSTANTS.ROUND_TIME * 1000) - new Date().getTime())/1000)
             }))
         }
+    }
+
+    public broadcastMatchEnd(room_id: string, winner: Team) {
+        for(let socket of this.socketRooms[room_id]) {
+            socket.send(JSON.stringify({
+                event_name: "END_MATCH",
+                winner: winner
+            }))
+        }
+
+        setTimeout(() => {
+            delete this.rooms[room_id];
+        }, 10000)
     }
 }
