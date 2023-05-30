@@ -18,13 +18,16 @@ export class Engine {
             spawnPoints: JSON.parse(JSON.stringify(SPAWNS)),
             current_round: 0,
             current_round_start_timestamp: 0,
+            current_round_bomb_plant_timestamp: 0,
             bomb: {
                 isPicked: {
                     value: false
                 },
                 isPlanted: false,
                 x: bombCoords.x,
-                y: bombCoords.y
+                y: bombCoords.y,
+                isDiffused: false,
+                isExploded: false
             }
         } 
         
@@ -179,16 +182,24 @@ export class Engine {
         room.state = State.MATCH_STARTED;
     }
 
-    updateRoundData(room: Room) {
+    updateRoundData(room: Room, room_id: string) {
         room.current_round += 1;
         room.rounds.push({ id: room.current_round });
         room.current_round_start_timestamp = new Date().getTime();
+        this.startRoundTimer(room, room_id)
     }
 
-    startRoundTimer(room_id: string) {
-        setTimeout(() => {
-            // end match
-        }, GAMECONSTANTS.ROUND_TIME)
+    startRoundTimer(room: Room, room_id: string) {
+        room.timer = setTimeout(() => {
+            this.endRound(room_id, Team.COUNTER_TERRORIST);
+        }, GAMECONSTANTS.ROUND_TIME * 1000)
+    }
+
+    startBombTimer(room: Room, room_id: string) {
+        room.timer = setTimeout(() => {
+            room.bomb.isExploded = true;
+            this.endRound(room_id, Team.TERRORIST);
+        }, GAMECONSTANTS.BOMB_TIMER * 1000)
     }
 
     disconnectUser(room_id: string, uid: string) {
@@ -357,9 +368,10 @@ export class Engine {
                     break;
             }
         }
+        
         if(ctKilled == ctTotal) {
             this.endRound(room_id, Team.TERRORIST);
-        } else if(tKilled == tTotal) {
+        } else if(tKilled == tTotal && !room.bomb.isPlanted) {
             this.endRound(room_id, Team.COUNTER_TERRORIST);
         }
     }
@@ -373,6 +385,19 @@ export class Engine {
             user.health = GAMECONSTANTS.MAX_HEALTH
             user.isAlive = true;
         }
+        room.bomb = {
+            isPicked: {
+                value: false
+            },
+            isPlanted: false,
+            x: bombCoords.x,
+            y: bombCoords.y,
+            isDiffused: false,
+            isExploded: false
+        }
+
+        room.current_round_bomb_plant_timestamp = 0;
+        room.current_round_start_timestamp = 0;
     }
 
     endRound(room_id: string, winner: Team) {
@@ -382,6 +407,8 @@ export class Engine {
 
         let room = this.rooms[room_id];
         room.rounds[room.current_round - 1].winner = winner;
+
+        clearTimeout(room.timer);
 
         this.broadcastEndRound(room_id);
     }
@@ -455,6 +482,66 @@ export class Engine {
         this.broadcastBombDropped(room_id, uid);
     }
 
+    plantBomb(room_id: string, uid: string) {
+        if(!this.checkIfRoomExists(room_id)) {
+            throw new Error('Room does not exist');
+        }
+
+        let room = this.rooms[room_id];
+
+        if(!this.checkIfUserExists(room, uid)) {
+            throw new Error('User doesnot exist in the room');
+        }
+
+        if(room.users[uid].team != Team.TERRORIST) {
+            return;
+        }
+
+        if(!room.bomb.isPicked.value || room.bomb.isPlanted) {
+            return;
+        }
+
+        if(room.bomb.isPicked.by != uid) {
+            return;
+        }
+
+        room.bomb.isPicked = {
+            value: false
+        }
+
+        room.bomb.x = room.users[uid].pos_x;
+        room.bomb.y = room.users[uid].pos_y;
+        room.bomb.isPlanted = true;
+
+        clearTimeout(room.timer);
+        room.current_round_bomb_plant_timestamp = new Date().getTime();
+        this.broadcastBombPlanted(room_id, uid);
+    }
+
+    diffuseBomb(room_id: string, uid: string) {
+        if(!this.checkIfRoomExists(room_id)) {
+            throw new Error('Room does not exist');
+        }
+
+        let room = this.rooms[room_id];
+
+        if(!this.checkIfUserExists(room, uid)) {
+            throw new Error('User doesnot exist in the room');
+        }
+
+        if(room.users[uid].team != Team.COUNTER_TERRORIST) {
+            return;
+        }
+
+        if(!room.bomb.isPlanted) {
+            return;
+        }
+
+        room.bomb.isDiffused = true;
+        clearTimeout(room.timer);
+        this.broadcastBombDiffused(room_id)
+    }
+
     broadcastBombDropped(room_id: string, uid: string) {
         let room = this.rooms[room_id];
         for(let socket of this.socketRooms[room_id]) {
@@ -467,6 +554,28 @@ export class Engine {
         }
     }
 
+    broadcastBombPlanted(room_id: string, uid: string) {
+        let room = this.rooms[room_id];
+        this.startBombTimer(room, room_id);
+        for(let socket of this.socketRooms[room_id]) {
+            socket.send(JSON.stringify({
+                event_name: 'BOMB_PLANTED',
+                uid: uid,
+                x: room.bomb.x,
+                y: room.bomb.y,
+                time_left: Math.floor((room.current_round_bomb_plant_timestamp + (GAMECONSTANTS.BOMB_TIMER * 1000) - new Date().getTime())/1000)
+            }))
+        }
+    }
+
+    broadcastBombDiffused(room_id: string) {
+        for(let socket of this.socketRooms[room_id]) {
+            socket.send(JSON.stringify({
+                event_name: 'BOMB_DIFFUSED',
+            }))
+        }
+        this.endRound(room_id, Team.COUNTER_TERRORIST);
+    }
 
     getMatchWinner(room: Room) {
         let ctWins = 0;
@@ -503,7 +612,8 @@ export class Engine {
         for(let socket of this.socketRooms[room_id]) {
             socket.send(JSON.stringify({
                 event_name: 'END_ROUND',
-                winner: room.rounds[room.current_round - 1].winner
+                winner: room.rounds[room.current_round - 1].winner,
+                isExploded: room.bomb.isExploded
             }))
         }
 
@@ -522,12 +632,14 @@ export class Engine {
         let room = this.getRoomData(room_id);
         this.resetPlayerStats(room);
         if(room.state == State.MATCH_STARTED) {
-            this.updateRoundData(room);
+            this.updateRoundData(room, room_id);
         }
+        let parsedRoom = { ...room };
+        parsedRoom.timer = undefined;
         for(let socket of this.socketRooms[room_id]) {
             socket.send(JSON.stringify({
                 event_name: "ROOM_DATA",
-                room: room,
+                room: parsedRoom,
                 time_left: Math.floor((room.current_round_start_timestamp + (GAMECONSTANTS.ROUND_TIME * 1000) - new Date().getTime())/1000)
             }))
         }

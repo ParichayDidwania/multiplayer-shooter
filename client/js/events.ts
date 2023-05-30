@@ -1,4 +1,4 @@
-import { bombDropped, bombPicked, isInit, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
+import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
 
 export class Events {
     socket: WebSocket;
@@ -54,7 +54,7 @@ export class Events {
                 break;
 
             case 'END_ROUND':
-                renderRoundWinner(event.winner);
+                renderRoundWinner(event.winner, event.isExploded);
                 break;
 
             case 'END_MATCH':
@@ -67,6 +67,14 @@ export class Events {
 
             case 'BOMB_DROPPED':
                 bombDropped(event.uid, event.x, event.y);
+                break;
+
+            case 'BOMB_PLANTED':
+                bombPlanted(event.uid, event.x, event.y, event.time_left);
+                break;
+
+            case 'BOMB_DIFFUSED':
+                bombDiffused();
                 break;
         }
     }

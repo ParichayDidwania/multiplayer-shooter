@@ -62,6 +62,14 @@ export class EventManager {
             case "BOMB_DROPPED":
                 this.engine.dropBomb(socket.room_id, socket.user_id);
                 break;
+            
+            case "BOMB_PLANTED":
+                this.engine.plantBomb(socket.room_id, socket.user_id);
+                break;
+
+            case "BOMB_DIFFUSED":
+                this.engine.diffuseBomb(socket.room_id, socket.user_id);
+                break;
         }
     }
 

@@ -30,7 +30,9 @@ export type Bomb = {
         value: boolean,
         by?: string
     },
-    isPlanted: boolean
+    isPlanted: boolean,
+    isDiffused: boolean,
+    isExploded: boolean
 }
 
 export enum State {
@@ -79,7 +81,9 @@ export type Room = {
     spawnPoints: SpawnPoints,
     current_round: number,
     current_round_start_timestamp: number,
-    bomb: Bomb
+    current_round_bomb_plant_timestamp: number,
+    bomb: Bomb,
+    timer?: NodeJS.Timeout
 }
 
 export type Rooms = Record<string, Room>;
@@ -93,7 +97,8 @@ export enum GAMECONSTANTS {
     SHOT_DAMAGE = 25,
     TEAM_SIZE = 5,
     MAX_ROUNDS = 5,
-    ROUND_TIME = 30
+    ROUND_TIME = 62,
+    BOMB_TIMER = 31
 }
 
 export const bombCoords = {

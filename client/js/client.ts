@@ -45,7 +45,34 @@ let reloadBtn: any;
 let bombDropBtn: any;
 let bomb_coords: any = {};
 let bomb: any;
+let planted_bomb: any;
 let bombBtnCooldown = 0;
+
+let bombPlantBtn: any;
+let isOnSiteA: any;
+let isOnSiteB: any;
+
+let tip: any;
+let isPlanting = false;
+let plantingBar: any;
+let plantingProgress = 0;
+
+const PLANTING_INCREMENT = 1;
+let plantBarCooldown: any = 0;
+let isBombPlanted = false;
+let bombPlantTween: any;
+
+let bombDiffuseButton: any;
+let diffuseBarCooldown: any = 0;
+let diffuseProgress = 0;
+let diffusingBar: any;
+let isDiffusing = false;
+
+let explosion: any;
+let explosionAlpha = 0;
+
+let Timer: any;
+
 class GameScene extends Phaser.Scene {
     constructor() {
         super({
@@ -75,6 +102,9 @@ class GameScene extends Phaser.Scene {
         this.load.image('tomb', 'assets/sprites/tomb.png')
         this.load.image('gun', 'assets/sprites/gun.png')
         this.load.image('bomb', 'assets/sprites/bomb.png')
+        this.load.image('bomb-planted', 'assets/sprites/bomb-plant.png')
+        this.load.image('siteA', 'assets/sprites/siteA.png')
+        this.load.image('siteB', 'assets/sprites/siteB.png')
     }
       
     create(): void {
@@ -108,6 +138,15 @@ class GameScene extends Phaser.Scene {
         rt.setTint(0x0a2948)
         rt.setDepth(50);
 
+        explosion = this.make.renderTexture({
+            x: map.widthInPixels/2,
+            y: map.heightInPixels/2,
+            width: map.widthInPixels,
+            height: map.heightInPixels
+        }, true)
+        explosion.fill(0xFF7A00, 0);
+        explosion.setDepth(200);
+
         shapes = this.cache.json.get('shapes');
         let bounds = this.matter.world.setBounds(map.widthInPixels, map.heightInPixels);
         Object.values(bounds.walls).forEach(o => o.label = 'bounds');
@@ -117,7 +156,9 @@ class GameScene extends Phaser.Scene {
         healthBar = makeBar.call(this, 5, this.cameras.main.height - 100, 0xc0c0c0);
         makeScoreUI.call(this)
         gunUI.call(this);
-        renderBomb();
+        renderBomb(); 
+        renderSiteA.call(this);
+        renderSiteB.call(this);
 
         vision = this.add.image(player.x, player.y, 'vision').setOrigin(0.5, 0.5);
         vision.scale = 1;
@@ -157,12 +198,21 @@ class GameScene extends Phaser.Scene {
         wasd = this.input.keyboard?.addKeys({ 'W': Phaser.Input.Keyboard.KeyCodes.W, 'S': Phaser.Input.Keyboard.KeyCodes.S, 'A': Phaser.Input.Keyboard.KeyCodes.A, 'D': Phaser.Input.Keyboard.KeyCodes.D });
         reloadBtn = this.input.keyboard?.addKeys({ 'R': Phaser.Input.Keyboard.KeyCodes.R });
         bombDropBtn = this.input.keyboard?.addKeys({ 'G': Phaser.Input.Keyboard.KeyCodes.G });
+        
         wasd.check_pressed_up = function () { return this.W.isDown };
         wasd.check_pressed_down = function () { return this.S.isDown };
         wasd.check_pressed_left = function () { return this.A.isDown };
         wasd.check_pressed_right = function () { return this.D.isDown };
         reloadBtn.isReloadPressed = function() { return this.R.isDown };
         bombDropBtn.isDropPressed = function() { return this.G.isDown };
+        
+        if(playerTeam == 'TERRORIST') {
+            bombPlantBtn = this.input.keyboard?.addKeys({ 'E': Phaser.Input.Keyboard.KeyCodes.E });
+            bombPlantBtn.isPlantPressed = function() { return this.E.isDown };
+        } else {
+            bombDiffuseButton = this.input.keyboard?.addKeys({ 'E': Phaser.Input.Keyboard.KeyCodes.E });
+            bombDiffuseButton.isDiffusePressed = function() { return this.E.isDown };
+        }
 
         this.input.on('pointermove',  (pointer: any) => {
             if(isAlive) {
@@ -172,7 +222,7 @@ class GameScene extends Phaser.Scene {
         }, this);
 
         this.input.on("pointerdown", (pointer: any) => {
-            if(isAlive) {
+            if(isAlive && !isPlanting && !isDiffusing) {
                 if(bulletLeft > 0) {
                     if (player.last_shot > 250 && player.active) {
                         shootPreprocess(player);
@@ -196,7 +246,7 @@ class GameScene extends Phaser.Scene {
     }
 
     update(time: number, delta: number): void {
-        if(isAlive) {
+        if(isAlive && !isPlanting && !isDiffusing) {
             var xMovement = 0;
             var yMovement = 0;
     
@@ -237,9 +287,40 @@ class GameScene extends Phaser.Scene {
                 bombBtnCooldown = 0;
                 if(player.hasBomb) {
                     sendBombDrop();
-                } else if (playerTeam == 'TERRORIST' && this.matter.overlap(bomb, player)) {
+                } else if (playerTeam == 'TERRORIST' && bomb && this.matter.overlap(bomb, player) && !isBombPlanted) {
                     sendBombPicked();
                 }
+            }
+        }
+
+        if(isAlive) {
+            plantBarCooldown += delta;
+            diffuseBarCooldown += delta;
+
+            if(playerTeam == 'TERRORIST' && bombPlantBtn.isPlantPressed() && player.hasBomb) { 
+                if(isOnSiteA(player.x, player.y) || isOnSiteB(player.x, player.y)) {
+                    if(plantBarCooldown >= 100) {
+                        plantBarCooldown = 0;
+                        startPlanting();
+                    }
+                } else {
+                    renderTip('You can only plant on the site!');
+                }
+            }
+
+            if(isPlanting && !bombPlantBtn.isPlantPressed()) {
+                stopPlanting();
+            }
+
+            if(playerTeam == 'COUNTER_TERRORIST' && bombDiffuseButton.isDiffusePressed() && bomb && this.matter.overlap(bomb, player)) {
+                if(diffuseBarCooldown >= 100) {
+                    diffuseBarCooldown = 0;
+                    startDiffusing();
+                }
+            }
+
+            if(isDiffusing && !bombDiffuseButton.isDiffusePressed()) {
+                stopDiffusing();
             }
         }
 
@@ -284,14 +365,148 @@ function makeBar(this: any, x: number, y: number, color: number) {
     return bar;
 }
 
-function renderBomb() {
+function renderBomb(isPlanted = false) {
     let scene = game.scene.scenes[0];
-    bomb = scene.matter.add.image(bomb_coords.x, bomb_coords.y, 'bomb', undefined, { label: 'bomb' }).setOrigin(0.5, 0.5).setDepth(102).setSensor(true).setDepth(-1);
+    bomb = scene.matter.add.image(bomb_coords.x, bomb_coords.y, 'bomb', undefined, { label: 'bomb' }).setOrigin(0.5, 0.5).setSensor(true).setDepth(-1);
+    if(isPlanted) {
+        planted_bomb = scene.add.image(bomb.x, bomb.y, 'bomb-planted').setOrigin(0.5, 0.5).setDepth(-1);
+        bombPlantTween = scene.tweens.add({
+            targets: [planted_bomb],
+            duration: 500,
+            alpha: 0,
+            ease: 'Cubic',
+            repeat: -1
+        })
+    }
 }
 
 
 function setBarValue(bar: Phaser.GameObjects.Graphics, percentage: number) {
     bar.scaleX = percentage / 100;
+}
+
+function renderSiteA(this: Phaser.Scene) {
+    let pointX = 254;
+    let pointY = 1405;
+    let width = 511;
+    let height = 450;
+    let rect3 = this.add.graphics({
+        lineStyle: {
+            width: 3,
+            color: 0xff0000,
+            alpha: 1
+        }
+    });
+    rect3.strokeRect(pointX, pointY, width, height).setDepth(-3);
+    this.add.image(pointX + width / 2, pointY + height / 2, 'siteA').setDepth(-3).setOrigin(0.5, 0.5).setScale(0.1, 0.1);
+    isOnSiteA = function(x: number, y: number) {
+        return (x >= pointX && x <= (pointX + width) && y >= pointY && y <= (pointY + height));
+    }
+}
+
+function renderSiteB(this: Phaser.Scene) {
+    let pointX = 1283;
+    let pointY = 315;
+    let width = 320;
+    let height = 388;
+    let rect3 = this.add.graphics({
+        lineStyle: {
+            width: 3,
+            color: 0xff0000,
+            alpha: 1
+        }
+    });
+    rect3.strokeRect(pointX, pointY, width, height).setDepth(-3);
+    this.add.image(pointX + width / 2, pointY + height / 2, 'siteB').setDepth(-3).setOrigin(0.5, 0.5).setScale(0.2, 0.2);
+    isOnSiteB = function(x: number, y: number) {
+        return (x >= pointX && x <= (pointX + width) && y >= pointY && y <= (pointY + height));
+    }
+}
+
+function renderTip(text: string) {
+    let scene = game.scene.scenes[0];
+    if(tip == undefined) {
+        tip = scene.add.text(scene.cameras.main.width - 10, 10 ,`${text}` , { color: '#F6BE00', font: '2em Arial' }).setOrigin(1, 0).setScrollFactor(0, 0).setDepth(104).setPadding(20);
+        setTimeout(() => {
+            tip.destroy();
+            tip = undefined;
+        }, 3000)
+    }
+}
+
+function startPlanting() {
+    let scene = game.scene.scenes[0];
+    if(plantingBar) {
+        plantingProgress += PLANTING_INCREMENT;
+        plantingBar.fillRect(player.x - 25, player.y + 50, plantingProgress, 10);
+        if(plantingProgress >= 50) {
+            stopPlanting();
+            player.hasBomb = false;
+            sendBombPlanted();
+        }
+    } else {
+        plantingProgress = 0;
+        isPlanting = true;
+        plantingBar = scene.add.graphics({
+            lineStyle: {
+                width: 2,
+                color: 0xFFA500,
+                alpha: 1
+            },
+            
+            fillStyle: {
+                color: 0xFFA500
+            }
+        });
+        plantingBar.strokeRect(player.x - 25, player.y + 50, 50, 10)
+        plantingBar.setDepth(101)
+    }   
+}
+
+function stopPlanting(){
+    if(plantingBar) {
+        plantingBar.destroy();
+        plantingBar = undefined;
+    }
+
+    isPlanting = false
+}
+
+function startDiffusing() {
+    let scene = game.scene.scenes[0];
+    if(diffusingBar) {
+        diffuseProgress += PLANTING_INCREMENT;
+        diffusingBar.fillRect(player.x - 25, player.y + 50, diffuseProgress, 10);
+        if(diffuseProgress >= 50) {
+            stopDiffusing();
+            sendBombDiffused();
+        }
+    } else {
+        diffuseProgress = 0;
+        isDiffusing = true;
+        diffusingBar = scene.add.graphics({
+            lineStyle: {
+                width: 2,
+                color: 0xFFA500,
+                alpha: 1
+            },
+            
+            fillStyle: {
+                color: 0xFFA500
+            }
+        });
+        diffusingBar.strokeRect(player.x - 25, player.y + 50, 50, 10);
+        diffusingBar.setDepth(101)
+    }   
+}
+
+function stopDiffusing() {
+    if(diffusingBar) {
+        diffusingBar.destroy();
+        diffusingBar = undefined;
+    }
+
+    isDiffusing = false
 }
 
 function makeScoreUI(this: any) {
@@ -306,9 +521,10 @@ function makeScoreUI(this: any) {
     let timerLength = 50;
     let CTLabel = this.add.text(midX - scoreCardLength - timerLength, 10 ,`COUNTER-TERRORIST` ,{ color: '#0096FF', backgroundColor: 'rgba(0,0,0,0.5)', font: '2.5em' }).setOrigin(1, 0).setScrollFactor(0, 0).setDepth(104).setPadding(20);
     let CTScore = this.add.text(CTLabel.getTopRight().x, 10 ,`${scoreBoard.COUNTER_TERRORIST}` ,{ fontSize: 30, color: '#FFFFFF', backgroundColor: 'rgba(0,150,255,0.5)', font: '2.5em' }).setOrigin(0, 0).setScrollFactor(0, 0).setDepth(104).setPadding(20);
-    let Timer = this.add.text(CTScore.getTopRight().x, 10 ,`${minute}:${seconds}` ,{ fontSize: 30, color: '#FFFF00', backgroundColor: 'rgba(0,0,0,0.5)', font: '2.5em' }).setOrigin(0, 0).setScrollFactor(0, 0).setDepth(104).setPadding(20);
+    Timer = this.add.text(CTScore.getTopRight().x, 10 ,`${minute}:${seconds}` ,{ fontSize: 30, color: '#FFFF00', backgroundColor: 'rgba(0,0,0,0.5)', font: '2.5em' }).setOrigin(0, 0).setScrollFactor(0, 0).setDepth(104).setPadding(20);
     let TScore = this.add.text(Timer.getTopRight().x, 10 ,`${scoreBoard.TERRORIST}` ,{ fontSize: 30, color: '#FFFFFF', backgroundColor: 'rgb(255, 191, 0, 0.5)', font: '2.5em' }).setOrigin(0, 0).setScrollFactor(0, 0).setDepth(104).setPadding(20);
     let TLabel = this.add.text(TScore.getTopRight().x, 10 ,`TERRORIST` ,{ color: '#FFBF00', backgroundColor: 'rgba(0,0,0,0.5)', font: '2.5em' }).setOrigin(0, 0).setScrollFactor(0, 0).setDepth(104).setPadding(50, 20, 50, 20);
+    clearInterval(roundTimerInterval);
     roundTimerInterval = setInterval(() => {
         if(roundTimeLeft <= 0) {
             clearInterval(roundTimerInterval);
@@ -321,6 +537,15 @@ function makeScoreUI(this: any) {
         Timer.text = `${minute}:${seconds}`
         roundTimeLeft--;
     }, 1000)
+}
+
+function startBombTimer() {
+    let minute = Math.floor(roundTimeLeft / 60);
+    let seconds: any = roundTimeLeft % 60;
+    if(seconds <= 9) {
+        seconds = `0${seconds}`
+    }
+    Timer.setText(`${minute}:${seconds}`);
 }
 
 function gunUI(this: any) {
@@ -366,6 +591,30 @@ function add_label(uid: string, x: number, y: number, category: Category) {
     return scene.add.text(x, y - 60, uid, { fontSize: 20, color: category == Category.ENEMY ? '#ff0000' : '#00ff00' }).setOrigin(0.5, 0.5)
 }
 
+export function bombDiffused() {
+    bomb.body.gameObject.destroy();
+    bomb = undefined;
+    planted_bomb.destroy();
+}
+
+export function explode() {
+    bomb.body.gameObject.destroy();
+    planted_bomb.destroy();
+    let scene = game.scene.scenes[0];
+    let explodeEvent = scene.time.addEvent({
+        delay: 50,
+        loop: true,
+        callback: () => { 
+            explosionAlpha += 0.01;
+            explosion.fill(0xFF7A00, explosionAlpha); 
+            if(explosionAlpha >= 0.1) {
+                explodeEvent.destroy();
+            }
+        },
+    })
+    scene.cameras.main.shake(500);
+}
+
 export function renderPlayer(uid: string, x: number, y: number, angle: number, team: string, health: number = 100) {
     let scene = game.scene.scenes[0];
     let player;
@@ -406,9 +655,12 @@ export function renderPlayer(uid: string, x: number, y: number, angle: number, t
     }
 }
 
-export function renderRoundWinner(winner: string) {
+export function renderRoundWinner(winner: string, isExploded: boolean) {
     let scene = game.scene.scenes[0];
     let winnerLabel = scene.add.text(scene.cameras.main.width / 2, scene.cameras.main.height / 2 ,`${winner} win` ,{ fontSize: 50, color: '#000000', backgroundColor: '#dddddd' }).setOrigin(0.5, 0.5).setScrollFactor(0, 0).setDepth(103).setPadding(20);
+    if(isExploded) {
+        explode();
+    }
     setTimeout(() => {
         winnerLabel.destroy();
     }, 5000)
@@ -438,6 +690,18 @@ function interpolate(player: any, x_pos: any, y_pos: any, angle_arr: any) {
         player.timer.destroy();
         player.timer = null;
     }
+}
+
+function sendBombPlanted() {
+    ws.send(JSON.stringify({
+        event_name: "BOMB_PLANTED",
+    }))
+}
+
+function sendBombDiffused() {
+    ws.send(JSON.stringify({
+        event_name: "BOMB_DIFFUSED",
+    }))
 }
 
 function sendBombPicked() {
@@ -470,6 +734,30 @@ function sendShoot(pointer_x: number, pointer_y: number, angle: number, shot_id:
         y: pointer_y,
         angle: angle
     }))
+}
+
+export function bombPlanted(uid: string, x: number, y: number, time_left: number) {
+    bomb_coords.x = x;
+    bomb_coords.y = y;
+
+    if(uid == username) {
+        player.setTexture('player-t');
+        player.hasBomb = false;
+    } else {
+        if(playerTeam == 'TERRORIST') {
+            allies[uid].setTexture('player-t');
+            allies[uid].hasBomb = false;
+        } else {
+            enemies[uid].setTexture('player-t');
+            enemies[uid].hasBomb = false;
+        }
+    }
+
+    isBombPlanted = true;
+    renderBomb(true);
+
+    roundTimeLeft = time_left - 1;
+    startBombTimer();
 }
 
 export function bombPicked(uid: string) {
@@ -669,7 +957,7 @@ window.onload = () => {
     ws.onopen = () => {
         let playerData: any = {}
         playerData[username] = 100;
-        // startGame({pos_x: 1800, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
+        // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
         event = new Events(ws, username);
     }
 
@@ -688,7 +976,8 @@ export function startGame(spawn: any, team: string, users: any, score: any, time
     playerTeam = team;
     scoreBoard = score;
     initialPlayerData = users;
-    roundTimeLeft = time_left;
+    roundTimeLeft = time_left - 2;
+    
     bomb_coords = {
         x: bomb.x,
         y: bomb.y
@@ -700,6 +989,19 @@ export function startGame(spawn: any, team: string, users: any, score: any, time
         game.scene.scenes[0].scene.restart();
         bulletLeft = MAX_BULLETS;
         isStarted = false;
+        tip = undefined;
+        isPlanting = false;
+        plantingBar = undefined;
+        plantingProgress = 0;
+        plantBarCooldown = 0;
+        isBombPlanted = false;
+        bombPlantTween = undefined;
+        bombDiffuseButton = undefined;
+        diffuseBarCooldown = 0;
+        diffuseProgress = 0;
+        diffusingBar = undefined;
+        isDiffusing = false;
+        explosionAlpha = 0;
     } else {
         game = new Phaser.Game(config);
     }
