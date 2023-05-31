@@ -83,7 +83,7 @@ export type Room = {
     current_round_start_timestamp: number,
     current_round_bomb_plant_timestamp: number,
     bomb: Bomb,
-    timer?: NodeJS.Timeout
+    timer?: any
 }
 
 export type Rooms = Record<string, Room>;

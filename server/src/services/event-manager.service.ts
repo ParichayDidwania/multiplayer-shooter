@@ -70,6 +70,13 @@ export class EventManager {
             case "BOMB_DIFFUSED":
                 this.engine.diffuseBomb(socket.room_id, socket.user_id);
                 break;
+
+            case "RECONNECT":
+                this.engine.reconnect(message.room_id, socket.user_id);
+                this.addToSocketRoom(socket, message.room_id);
+                socket.room_id = message.room_id;
+                this.engine.sendRoomData(message.room_id, socket);
+                break;
         }
     }
 
@@ -79,13 +86,12 @@ export class EventManager {
             if(!room) {
                 return;
             }
+
+            this.removeFromSocketRoom(socket);
+            this.engine.disconnectUser(socket.room_id, socket.user_id);
             
             if(room.state == State.CREATED) {
-                this.removeFromSocketRoom(socket);
-                this.engine.disconnectUser(socket.room_id, socket.user_id);
                 this.engine.broadcastRoomData(socket.room_id);
-            } else {
-                // handle match start disconnection
             }
         }
     }

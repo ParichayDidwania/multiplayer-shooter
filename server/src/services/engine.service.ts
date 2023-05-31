@@ -554,6 +554,21 @@ export class Engine {
         }
     }
 
+    reconnect(room_id: string, uid: string) {
+        if(!this.checkIfRoomExists(room_id)) {
+            throw new Error('Room does not exist');
+        }
+
+        let room = this.rooms[room_id];
+
+        if(!this.checkIfUserExists(room, uid)) {
+            throw new Error('User doesnot exist in the room');
+        }
+
+        let user = room.users[uid];
+        user.status = ConnectionStatus.CONNECTED;
+    }
+
     broadcastBombPlanted(room_id: string, uid: string) {
         let room = this.rooms[room_id];
         this.startBombTimer(room, room_id);
@@ -643,6 +658,18 @@ export class Engine {
                 time_left: Math.floor((room.current_round_start_timestamp + (GAMECONSTANTS.ROUND_TIME * 1000) - new Date().getTime())/1000)
             }))
         }
+    }
+
+    public sendRoomData(room_id: string, socket: IWebSocket) {
+        let room = this.getRoomData(room_id);
+        let parsedRoom = { ...room };
+        parsedRoom.timer = undefined;
+        socket.send(JSON.stringify({
+            event_name: "RECONNECT",
+            room: parsedRoom,
+            round_timer: GAMECONSTANTS.ROUND_TIME,
+            bomb_timer: GAMECONSTANTS.BOMB_TIMER
+        }))   
     }
 
     public broadcastMatchEnd(room_id: string, winner: Team) {

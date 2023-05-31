@@ -72,6 +72,8 @@ let explosion: any;
 let explosionAlpha = 0;
 
 let Timer: any;
+let roomData: any;
+let isPlanted = false;
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -156,7 +158,7 @@ class GameScene extends Phaser.Scene {
         healthBar = makeBar.call(this, 5, this.cameras.main.height - 100, 0xc0c0c0);
         makeScoreUI.call(this)
         gunUI.call(this);
-        renderBomb(); 
+        renderBomb(isPlanted);
         renderSiteA.call(this);
         renderSiteB.call(this);
 
@@ -237,6 +239,16 @@ class GameScene extends Phaser.Scene {
         }, this);
 
         renderInitialPlayers();
+
+        if(roomData) {
+            if(roomData.bomb.isExploded) {
+                explode();
+            } else if(!roomData.bomb.isPlanted && roomData.bomb.isPicked.value) {
+                let bomber = roomData.bomb.isPicked.by;
+                console.log(bomber);
+                bombPicked(bomber);
+            }
+        }
 
         interval = setInterval(() => {
             send_pose(player);
@@ -598,8 +610,8 @@ export function bombDiffused() {
 }
 
 export function explode() {
-    bomb.body.gameObject.destroy();
-    planted_bomb.destroy();
+    bomb ? bomb.body.gameObject.destroy(): undefined;
+    planted_bomb ? planted_bomb.destroy() : undefined;
     let scene = game.scene.scenes[0];
     let explodeEvent = scene.time.addEvent({
         delay: 50,
@@ -814,11 +826,11 @@ export function updateHealth(uid: string, team: string, health: number, isAlive:
     }
 
     if(!isAlive) {
-        killPlayer(sprite, uid, team);
+        killPlayer(sprite, uid);
     }
 }
 
-function killPlayer(sprite: any, uid: string, team: string) {
+function killPlayer(sprite: any, uid: string) {
     let scene = game.scene.scenes[0];
     if(username == uid) {
         isAlive = false;
@@ -878,7 +890,7 @@ function createPlayer(uid: string, category: Category, x: number = 200, y: numbe
     player.setRotation(angle)
     player.label = add_label(uid, x, y, category);
     player.health = health;
-    player.isAlive = health > 0 ? true : false;
+    player.isAlive = true;
     
     player.body.immovable = true;
     player.body.moves = false;
@@ -944,6 +956,13 @@ function renderInitialPlayers() {
         let user = initialPlayerData[userId];
         renderPlayer(userId, user.pos_x, user.pos_y, user.angle, user.team, user.health);
     }
+
+    let combined = { ...allies, ...enemies };
+
+    for(let uid in combined) {
+        let user = initialPlayerData[uid];
+        updateHealth(uid, user.team, user.health, user.isAlive);
+    }
 }
 
 window.onload = () => {
@@ -1002,9 +1021,33 @@ export function startGame(spawn: any, team: string, users: any, score: any, time
         diffusingBar = undefined;
         isDiffusing = false;
         explosionAlpha = 0;
+        roomData = undefined;
+        isPlanted = false;
     } else {
         game = new Phaser.Game(config);
     }
+}
+
+export function reconnectGame(room: any, spawn: any, team: string, users: any, score: any, bomb: any, round_timer: number, bomb_timer: number) {
+    playerSpawn = spawn;
+    playerTeam = team;
+    scoreBoard = score;
+    initialPlayerData = users;
+    bomb_coords = {
+        x: bomb.x,
+        y: bomb.y
+    }
+    if(room.bomb.isPlanted) {
+        isPlanted = true;
+        roundTimeLeft = Math.floor(((room.current_round_bomb_plant_timestamp + bomb_timer * 1000) - (new Date().getTime())) / 1000);
+        roundTimeLeft -= 1;
+    } else {
+        roundTimeLeft = Math.floor(((room.current_round_start_timestamp + round_timer * 1000) - (new Date().getTime())) / 1000);
+        roundTimeLeft -= 2;
+    }
+
+    roomData = room;
+    game = new Phaser.Game(config);
 }
 
 export function isInit() {

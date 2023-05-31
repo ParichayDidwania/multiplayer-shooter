@@ -1,4 +1,4 @@
-import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
+import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, reconnectGame, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
 
 export class Events {
     socket: WebSocket;
@@ -76,6 +76,19 @@ export class Events {
             case 'BOMB_DIFFUSED':
                 bombDiffused();
                 break;
+
+            case 'RECONNECT':
+                this.unsetMenu();
+                let user = event.room.users[this.uid]
+                let spawn = {
+                    pos_x: user.pos_x,
+                    pos_y: user.pos_y,
+                    angle: user.angle
+                }
+                let score = this.calculateMatchScore(event.room);
+                this.team = user.team;
+                reconnectGame(event.room, spawn, this.team, event.room.users, score, event.room.bomb, event.round_timer, event.bomb_timer);
+                break;
         }
     }
 
@@ -110,6 +123,16 @@ export class Events {
         }))
     }
 
+    sendReconnectRoom() {
+        let room_id: any = document.getElementById('room_id');
+        this.room_id = room_id.value;
+        this.socket.send(JSON.stringify({
+            event_name: "RECONNECT",
+            uid: this.uid,
+            room_id: this.room_id
+        }))
+    }
+
     sendStartMatch() {
         console.log('here');
         this.socket.send(JSON.stringify({
@@ -123,13 +146,16 @@ export class Events {
         div.style.visibility = 'visible';
         div.innerHTML = `<b>Room Id: </b><input id='room_id' type ='text' value='room123'>
         <button id='createBtn'style = 'background-color: green;'>Create</button>
-        <button id='joinBtn'style = 'background-color: yellow;'>Join</button>`
+        <button id='joinBtn'style = 'background-color: yellow;'>Join</button>
+        <button id='reconnectBtn'style = 'background-color: blue;'>Reconnect</button>`
 
         let createBtn: any = document.getElementById('createBtn');
         let joinBtn: any = document.getElementById('joinBtn');
+        let reconnectBtn: any = document.getElementById('reconnectBtn');
 
         createBtn.onclick = this.sendCreateRoom.bind(this);
         joinBtn.onclick = this.sendJoinRoom.bind(this);
+        reconnectBtn.onclick = this.sendReconnectRoom.bind(this);
     }
 
     unsetMenu() {
