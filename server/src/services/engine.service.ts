@@ -282,7 +282,7 @@ export class Engine {
             }
 
             if(total == disconnected) {
-                clearInterval(room.timer);
+                clearTimeout(room.timer);
                 delete this.rooms[room.room_id];
             }
         }

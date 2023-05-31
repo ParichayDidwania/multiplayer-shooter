@@ -25,7 +25,7 @@ let handle_distance = 16
 let shapes: any;
 let gun_angle = 0.34
 let gun_distance = 48;
-let bulletVelocity = 500;
+let bulletVelocity = 750;
 let vision: any;
 let event: Events;
 
@@ -73,7 +73,6 @@ let explosionAlpha = 0;
 
 let Timer: any;
 let roomData: any;
-let isPlanted = false;
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -158,7 +157,7 @@ class GameScene extends Phaser.Scene {
         healthBar = makeBar.call(this, 5, this.cameras.main.height - 100, 0xc0c0c0);
         makeScoreUI.call(this)
         gunUI.call(this);
-        renderBomb(isPlanted);
+        renderBomb(isBombPlanted);
         renderSiteA.call(this);
         renderSiteB.call(this);
 
@@ -217,7 +216,7 @@ class GameScene extends Phaser.Scene {
         }
 
         this.input.on('pointermove',  (pointer: any) => {
-            if(isAlive) {
+            if(isAlive && !isPlanting && !isDiffusing) {
                 let angle = Phaser.Math.Angle.Between(player.x, player.y, pointer.x + this.cameras.main.scrollX, pointer.y + this.cameras.main.scrollY);
                 player.setRotation(angle);
             }
@@ -298,7 +297,7 @@ class GameScene extends Phaser.Scene {
                 bombBtnCooldown = 0;
                 if(player.hasBomb) {
                     sendBombDrop();
-                } else if (playerTeam == 'TERRORIST' && bomb && this.matter.overlap(bomb, player) && !isBombPlanted) {
+                } else if (playerTeam == 'TERRORIST' && bomb && bomb.body && this.matter.overlap(bomb, player) && !isBombPlanted) {
                     sendBombPicked();
                 }
             }
@@ -310,7 +309,7 @@ class GameScene extends Phaser.Scene {
 
             if(playerTeam == 'TERRORIST' && bombPlantBtn.isPlantPressed() && player.hasBomb) { 
                 if(isOnSiteA(player.x, player.y) || isOnSiteB(player.x, player.y)) {
-                    if(plantBarCooldown >= 100) {
+                    if(plantBarCooldown >= 60) {
                         plantBarCooldown = 0;
                         startPlanting();
                     }
@@ -323,8 +322,8 @@ class GameScene extends Phaser.Scene {
                 stopPlanting();
             }
 
-            if(playerTeam == 'COUNTER_TERRORIST' && bombDiffuseButton.isDiffusePressed() && bomb && this.matter.overlap(bomb, player) && isPlanted) {
-                if(diffuseBarCooldown >= 100) {
+            if(playerTeam == 'COUNTER_TERRORIST' && bombDiffuseButton.isDiffusePressed() && bomb && bomb.body && this.matter.overlap(bomb, player) && isBombPlanted) {
+                if(diffuseBarCooldown >= 60) {
                     diffuseBarCooldown = 0;
                     startDiffusing();
                 }
@@ -548,6 +547,10 @@ function makeScoreUI(this: any) {
         Timer.text = `${minute}:${seconds}`
         roundTimeLeft--;
     }, 1000)
+
+    if(isBombPlanted) {
+        startTimerBackgroundFlash();
+    }
 }
 
 function startBombTimer() {
@@ -557,6 +560,26 @@ function startBombTimer() {
         seconds = `0${seconds}`
     }
     Timer.setText(`${minute}:${seconds}`);
+}
+
+function startTimerBackgroundFlash() {
+    let scene = game.scene.scenes[0];
+    Timer.setBackgroundColor('rgba(255,0,0,0.0)');
+    let alphaIncr = 0.05;
+    let bombTimerAlpha = 0;
+    scene.time.addEvent({
+        delay: 20,
+        loop: true,
+        callback: () => { 
+            bombTimerAlpha += alphaIncr;
+            Timer.setBackgroundColor(`rgba(255,0,0, ${bombTimerAlpha})`);
+            if(bombTimerAlpha >= 0.5) {
+                alphaIncr = -0.01;
+            } else if (bombTimerAlpha <= 0) {
+                alphaIncr = 0.01;
+            }
+        },
+    })
 }
 
 function gunUI(this: any) {
@@ -647,7 +670,7 @@ export function renderPlayer(uid: string, x: number, y: number, angle: number, t
         return;
     }
 
-    if(player.x != x || player.y != y || player.rotation != angle) {
+    if(player.isAlive && (player.x != x || player.y != y || player.rotation != angle)) {
         let x_pos = [player.x, x];
         let y_pos = [player.y, y];
         let shortestAngle = Phaser.Math.Angle.ShortestBetween(Phaser.Math.RadToDeg(player.rotation), Phaser.Math.RadToDeg(angle));
@@ -770,6 +793,8 @@ export function bombPlanted(uid: string, x: number, y: number, time_left: number
 
     roundTimeLeft = time_left - 1;
     startBombTimer();
+
+    startTimerBackgroundFlash();
 }
 
 export function bombPicked(uid: string) {
@@ -967,7 +992,7 @@ function renderInitialPlayers() {
 
 window.onload = () => {
     username = prompt('Enter username!') ?? "null"
-    ws = new WebSocket(`ws://localhost:7000?user=${username}`);
+    ws = new WebSocket(`wss://2ef0-183-82-102-119.ngrok-free.app?user=${username}`);
 
     ws.addEventListener("error", (event: any) => {
         alert(`Error: ${JSON.stringify(event)}`);
@@ -976,14 +1001,14 @@ window.onload = () => {
     ws.onopen = () => {
         let playerData: any = {}
         playerData[username] = 100;
-        // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
-        event = new Events(ws, username);
+        startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
+        // event = new Events(ws, username);
     }
 
     ws.onmessage = (message: any) => {
         try {
             let parsedEvent = JSON.parse(message.data.toString());
-            event.handleEvents(parsedEvent);
+            // event.handleEvents(parsedEvent);
         } catch(e) {
             console.log(e);
         } 
@@ -1022,7 +1047,6 @@ export function startGame(spawn: any, team: string, users: any, score: any, time
         isDiffusing = false;
         explosionAlpha = 0;
         roomData = undefined;
-        isPlanted = false;
     } else {
         game = new Phaser.Game(config);
     }
@@ -1038,7 +1062,7 @@ export function reconnectGame(room: any, spawn: any, team: string, users: any, s
         y: bomb.y
     }
     if(room.bomb.isPlanted) {
-        isPlanted = true;
+        isBombPlanted = true;
         roundTimeLeft = Math.floor(((room.current_round_bomb_plant_timestamp + bomb_timer * 1000) - (new Date().getTime())) / 1000);
         roundTimeLeft -= 1;
     } else {
