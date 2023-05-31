@@ -70,10 +70,17 @@ export type Shot = {
 
 export type Round = {
     id: number,
+    half: number,
     winner?: Team
 }
 
+export enum Half {
+    FIRST_HALF = 1,
+    SECOND_HALF = 2
+}
+
 export type Room = {
+    room_id: string,
     state: State,
     users: Record<string, User>,
     rounds: Round[],
@@ -83,6 +90,7 @@ export type Room = {
     current_round_start_timestamp: number,
     current_round_bomb_plant_timestamp: number,
     bomb: Bomb,
+    half: Half,
     timer?: any
 }
 
@@ -96,7 +104,8 @@ export enum GAMECONSTANTS {
     HIT_REG_RADIUS = 50,
     SHOT_DAMAGE = 25,
     TEAM_SIZE = 5,
-    MAX_ROUNDS = 5,
+    MAX_ROUNDS = 3,
+    SWITCH_SIDE_ROUND = 2,
     ROUND_TIME = 62,
     BOMB_TIMER = 31
 }

@@ -1,4 +1,4 @@
-import { ConnectionStatus, GAMECONSTANTS, Room, Rooms, SPAWNS, Shot, SpawnPoint, State, Team, User, bombCoords } from "../dtos/engine.dto";
+import { ConnectionStatus, GAMECONSTANTS, Half, Room, Rooms, SPAWNS, Shot, SpawnPoint, State, Team, User, bombCoords } from "../dtos/engine.dto";
 import { IWebSocket } from "./socket.service";
 
 export class Engine {
@@ -9,8 +9,9 @@ export class Engine {
         this.socketRooms = socketRooms;
     }
 
-    createRoomData() {
+    createRoomData(room_id: string) {
         let room : Room = {
+            room_id: room_id,
             state: State.CREATED,
             users: {},
             rounds: [],
@@ -28,7 +29,8 @@ export class Engine {
                 y: bombCoords.y,
                 isDiffused: false,
                 isExploded: false
-            }
+            },
+            half: Half.FIRST_HALF
         } 
         
         return room;
@@ -77,6 +79,33 @@ export class Engine {
             }
         }
         room.users[uid] = user;
+    }
+
+    resetSpawns(room: Room) {
+        for(let point of room.spawnPoints.COUNTER_TERRORIST) {
+            delete point.by
+            point.isTaken = false;
+        }
+
+        for(let point of room.spawnPoints.TERRORIST) {
+            delete point.by
+            point.isTaken = false;
+        }        
+    }
+
+    switchTeams(room: Room) {
+        for(let uid in room.users) {
+            let user = room.users[uid];
+            let team = Team.NONE
+            if(user.team == Team.COUNTER_TERRORIST) {
+                team = Team.TERRORIST;
+            } else {
+                team = Team.COUNTER_TERRORIST;
+            }
+
+            user.team = Team.NONE;
+            this.joinTeam(room.room_id, uid, team);
+        }   
     }
 
     joinTeam(room_id: string, uid: string, team: Team) {
@@ -138,7 +167,7 @@ export class Engine {
             throw new Error('Room Already Exists');
         }
 
-        let room = this.createRoomData();
+        let room = this.createRoomData(room_id);
         this.rooms[room_id] = room;
 
         this.addUserToRoom(room_id, uid, true);
@@ -184,7 +213,7 @@ export class Engine {
 
     updateRoundData(room: Room, room_id: string) {
         room.current_round += 1;
-        room.rounds.push({ id: room.current_round });
+        room.rounds.push({ id: room.current_round, half: room.half });
         room.current_round_start_timestamp = new Date().getTime();
         this.startRoundTimer(room, room_id)
     }
@@ -242,6 +271,20 @@ export class Engine {
             }
         } else {
             room.users[uid].status = ConnectionStatus.DISCONNECTED;
+            let total = 0;
+            let disconnected = 0;
+            for(let uid in room.users) {
+                let user = room.users[uid];
+                total++;
+                if(user.status == ConnectionStatus.DISCONNECTED) {
+                    disconnected++;
+                }
+            }
+
+            if(total == disconnected) {
+                clearInterval(room.timer);
+                delete this.rooms[room.room_id];
+            }
         }
     }
 
@@ -595,14 +638,24 @@ export class Engine {
     getMatchWinner(room: Room) {
         let ctWins = 0;
         let tWins = 0;
-        for(let round of room.rounds) {
-            if(round.winner == Team.COUNTER_TERRORIST) {
-                ctWins++;
-            } else if (round.winner == Team.TERRORIST) {
-                tWins++;
+        if(room.half == Half.FIRST_HALF) {
+            for(let round of room.rounds) {
+                if(round.winner == Team.COUNTER_TERRORIST) {
+                    ctWins++;
+                } else if (round.winner == Team.TERRORIST) {
+                    tWins++;
+                }
+            }
+        } else {
+            for(let round of room.rounds) {
+                if(round.winner == Team.COUNTER_TERRORIST) {
+                    round.half == Half.FIRST_HALF ? tWins++ : ctWins++
+                } else if (round.winner == Team.TERRORIST) {
+                    round.half == Half.FIRST_HALF ? ctWins++ : tWins++
+                }
             }
         }
-
+        
         let isMatchEnded = false;
         let winner = Team.NONE;
 
@@ -614,6 +667,12 @@ export class Engine {
         if(tWins == GAMECONSTANTS.MAX_ROUNDS) {
             isMatchEnded = true;
             winner = Team.TERRORIST;
+        }
+
+        if(room.rounds.length == GAMECONSTANTS.SWITCH_SIDE_ROUND) {
+            room.half = Half.SECOND_HALF;
+            this.resetSpawns(room);
+            this.switchTeams(room)
         }
 
         return { isMatchEnded, winner };

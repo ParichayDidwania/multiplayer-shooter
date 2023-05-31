@@ -245,7 +245,6 @@ class GameScene extends Phaser.Scene {
                 explode();
             } else if(!roomData.bomb.isPlanted && roomData.bomb.isPicked.value) {
                 let bomber = roomData.bomb.isPicked.by;
-                console.log(bomber);
                 bombPicked(bomber);
             }
         }
@@ -324,7 +323,7 @@ class GameScene extends Phaser.Scene {
                 stopPlanting();
             }
 
-            if(playerTeam == 'COUNTER_TERRORIST' && bombDiffuseButton.isDiffusePressed() && bomb && this.matter.overlap(bomb, player)) {
+            if(playerTeam == 'COUNTER_TERRORIST' && bombDiffuseButton.isDiffusePressed() && bomb && this.matter.overlap(bomb, player) && isPlanted) {
                 if(diffuseBarCooldown >= 100) {
                     diffuseBarCooldown = 0;
                     startDiffusing();
@@ -674,6 +673,7 @@ export function renderRoundWinner(winner: string, isExploded: boolean) {
         explode();
     }
     setTimeout(() => {
+        clearTimeout(interval);
         winnerLabel.destroy();
     }, 5000)
     clearInterval(roundTimerInterval);

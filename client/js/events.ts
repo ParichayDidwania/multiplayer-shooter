@@ -194,6 +194,7 @@ export class Events {
                 angle: user.angle
             }
             let score = this.calculateMatchScore(room);
+            this.team = user.team;
             startGame(spawn, this.team, room.users, score, time_left, room.bomb);
         } else if (room.state == 'CREATED') {
             let div : any = document.getElementById('pre-match');
@@ -249,11 +250,25 @@ export class Events {
             TERRORIST: 0,
             COUNTER_TERRORIST: 0
         }
-        for(let round of room.rounds) {
-            if(round.winner) {
-                score[round.winner]++;
+        if(room.half == 1) {
+            for(let round of room.rounds) {
+                if(round.winner) {
+                    score[round.winner]++;
+                }
+            }
+        } else {
+            for(let round of room.rounds) {
+                if(round.winner) {
+                    if(round.half == 1) {
+                        let winner: any = Object.keys(score).find(x => x != round.winner);
+                        score[winner]++;
+                    } else {
+                        score[round.winner]++;
+                    }
+                }
             }
         }
+        
 
         return score;
     }
