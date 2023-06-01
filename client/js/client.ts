@@ -73,6 +73,7 @@ let explosionAlpha = 0;
 
 let Timer: any;
 let roomData: any;
+let hitTween: any;
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -249,8 +250,10 @@ class GameScene extends Phaser.Scene {
         }
 
         interval = setInterval(() => {
+            console.log(`sending pos`);
             send_pose(player);
-        }, 100)
+        }, 100);
+
 
         isStarted = true;
     }
@@ -562,6 +565,23 @@ function startBombTimer() {
     Timer.setText(`${minute}:${seconds}`);
 }
 
+function onHitAnim(sprite: any) {    
+    if(hitTween) {
+        hitTween.remove();
+        hitTween.destroy();
+        sprite.setAlpha(1);
+    }
+
+    hitTween = game.scene.scenes[0].tweens.add({
+        targets: [sprite],
+        duration: 75,
+        alpha: 0.5,
+        ease: 'Cubic',
+        repeat: 1,
+        yoyo: true
+    })
+}
+
 function startTimerBackgroundFlash() {
     let scene = game.scene.scenes[0];
     Timer.setBackgroundColor('rgba(255,0,0,0.0)');
@@ -696,7 +716,8 @@ export function renderRoundWinner(winner: string, isExploded: boolean) {
         explode();
     }
     setTimeout(() => {
-        clearTimeout(interval);
+        clearInterval(bulletReloadAnimInterval);
+        clearInterval(interval);
         winnerLabel.destroy();
     }, 5000)
     clearInterval(roundTimerInterval);
@@ -706,7 +727,6 @@ export function renderMatchWinner(winner: string) {
     let scene = game.scene.scenes[0];
     scene.add.text(scene.cameras.main.width / 2, scene.cameras.main.height / 2 ,`${winner} wins the match` ,{ fontSize: 50, color: '#000000', backgroundColor: '#ffdc18' }).setOrigin(0.5, 0.5).setScrollFactor(0, 0).setDepth(103).setPadding(20);
     setTimeout(() => {
-        ws.close();
         game.destroy(true);
         event.setMenu();
     }, 5000)
@@ -722,6 +742,9 @@ function interpolate(player: any, x_pos: any, y_pos: any, angle_arr: any) {
     player.label.y = newY - 60;
     player.incr += 0.1
     if(player.incr > 1) {
+        if(!player.isAlive) {
+            player.setRotation(0);
+        }
         player.timer.destroy();
         player.timer = null;
     }
@@ -852,6 +875,8 @@ export function updateHealth(uid: string, team: string, health: number, isAlive:
 
     if(!isAlive) {
         killPlayer(sprite, uid);
+    } else {
+        onHitAnim(sprite);
     }
 }
 
@@ -865,9 +890,9 @@ function killPlayer(sprite: any, uid: string) {
     sprite.isAlive = false;
     sprite.setScale(0.1, 0.1)
     sprite.setTexture('tomb');
-    scene.matter.world.remove(sprite);
-    sprite.setDepth(-2);
     sprite.setRotation(0);
+    sprite.setDepth(-2);
+    scene.matter.world.remove(sprite);
 }
 
 let game: Phaser.Game;
@@ -992,7 +1017,7 @@ function renderInitialPlayers() {
 
 window.onload = () => {
     username = prompt('Enter username!') ?? "null"
-    ws = new WebSocket(`wss://2ef0-183-82-102-119.ngrok-free.app?user=${username}`);
+    ws = new WebSocket(`wss://b84e-183-82-102-119.ngrok-free.app?user=${username}`);
 
     ws.addEventListener("error", (event: any) => {
         alert(`Error: ${JSON.stringify(event)}`);
@@ -1001,58 +1026,107 @@ window.onload = () => {
     ws.onopen = () => {
         let playerData: any = {}
         playerData[username] = 100;
-        startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
-        // event = new Events(ws, username);
+        // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
+        event = new Events(ws, username);
     }
 
     ws.onmessage = (message: any) => {
         try {
             let parsedEvent = JSON.parse(message.data.toString());
-            // event.handleEvents(parsedEvent);
+            event.handleEvents(parsedEvent);
         } catch(e) {
             console.log(e);
         } 
     }
 };
 
+function resetVariables() {
+    shot_id = 0;
+    map_shot_id = 0;
+    speed = 0.3;
+    bulletMap = {};
+    healthBar = undefined;
+    isAlive = false;
+    diag_speed = speed / 1.414
+    player = undefined;
+    wasd = undefined;
+    enemies = {};
+    allies = {};
+    isStarted = false;
+    handle_angle = Math.PI/2;
+    handle_distance = 16
+    shapes = undefined ;
+    gun_angle = 0.34
+    gun_distance = 48;
+    bulletVelocity = 750;
+    vision = undefined;
+    playerSpawn = undefined;
+    playerTeam = '';
+    initialPlayerData = undefined ;
+    interval = undefined;
+    scoreBoard = undefined;
+    roundTimeLeft = -1;
+    roundTimerInterval = undefined;
+    bulletReloadAnimInterval = undefined;
+    bulletLeft = MAX_BULLETS;
+    reloadTimeout = undefined;
+    bulletInfoLabel = undefined;
+    reloadBtn = undefined;
+    bombDropBtn = undefined;
+    bomb_coords = {};
+    bomb = undefined;
+    planted_bomb = undefined;
+    bombBtnCooldown = 0;
+    bombPlantBtn = undefined;
+    isOnSiteA = undefined;
+    isOnSiteB = undefined;
+    tip = undefined;
+    isPlanting = false;
+    plantingBar = undefined;
+    plantingProgress = 0;
+    plantBarCooldown  = 0;
+    isBombPlanted = false;
+    bombPlantTween = undefined;
+    bombDiffuseButton = undefined;
+    diffuseBarCooldown  = 0;
+    diffuseProgress = 0;
+    diffusingBar = undefined;
+    isDiffusing = false;
+    explosion = undefined;
+    explosionAlpha = 0;
+    Timer = undefined;
+    roomData = undefined;
+    hitTween = undefined;
+}
+
+function ClearAllIntervals() {
+    for (var i = 1; i < 99999; i++)
+        window.clearInterval(i);
+}
+
 export function startGame(spawn: any, team: string, users: any, score: any, time_left: number, bomb: any) {
+    ClearAllIntervals();
+    resetVariables();
+    
     playerSpawn = spawn;
     playerTeam = team;
     scoreBoard = score;
     initialPlayerData = users;
     roundTimeLeft = time_left - 2;
-    
     bomb_coords = {
         x: bomb.x,
         y: bomb.y
     }
+
     if(game) {
-        enemies = {};
-        allies = {};
-        bulletMap = {};
         game.scene.scenes[0].scene.restart();
-        bulletLeft = MAX_BULLETS;
-        isStarted = false;
-        tip = undefined;
-        isPlanting = false;
-        plantingBar = undefined;
-        plantingProgress = 0;
-        plantBarCooldown = 0;
-        isBombPlanted = false;
-        bombPlantTween = undefined;
-        bombDiffuseButton = undefined;
-        diffuseBarCooldown = 0;
-        diffuseProgress = 0;
-        diffusingBar = undefined;
-        isDiffusing = false;
-        explosionAlpha = 0;
-        roomData = undefined;
     } else {
         game = new Phaser.Game(config);
     }
 }
 
 export function reconnectGame(room: any, spawn: any, team: string, users: any, score: any, bomb: any, round_timer: number, bomb_timer: number) {
+    resetVariables();
     playerSpawn = spawn;
     playerTeam = team;
     scoreBoard = score;

@@ -373,6 +373,8 @@ export class Engine {
                 enemy.isAlive = false;
                 enemy.health = 0;
                 if(room.bomb.isPicked.value && room.bomb.isPicked.by == enemyUid) {
+                    room.bomb.x = enemy.pos_x;
+                    room.bomb.y = enemy.pos_y;
                     this.broadcastBombDropped(room_id, enemyUid);
                 }
                 this.checkRoundStatus(room_id);
@@ -449,11 +451,11 @@ export class Engine {
         }
 
         let room = this.rooms[room_id];
-        room.rounds[room.current_round - 1].winner = winner;
-
-        clearTimeout(room.timer);
-
-        this.broadcastEndRound(room_id);
+        if(room.rounds[room.current_round - 1] && !room.rounds[room.current_round - 1].winner) {
+            room.rounds[room.current_round - 1].winner = winner;
+            clearTimeout(room.timer);
+            this.broadcastEndRound(room_id);
+        }
     }
 
     pickBomb(room_id: string, uid: string) {
@@ -741,6 +743,6 @@ export class Engine {
 
         setTimeout(() => {
             delete this.rooms[room_id];
-        }, 10000)
+        }, 5000)
     }
 }

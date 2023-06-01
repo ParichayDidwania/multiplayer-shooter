@@ -29,7 +29,8 @@ export class Events {
                 break;
 
             case 'ROOM_DATA':
-                if(this.team != 'NONE') {
+                if(event.room.users[this.uid].team != 'NONE') {
+                    this.team = event.room.users[this.uid].team;
                     this.unsetTeamSelection();
                     this.setPreMatchData(event.room, event.time_left);
                 }
@@ -198,6 +199,7 @@ export class Events {
             startGame(spawn, this.team, room.users, score, time_left, room.bomb);
         } else if (room.state == 'CREATED') {
             let div : any = document.getElementById('pre-match');
+            div.style.visibility = 'visible';
             let playerList = '';
             let usernames = Object.keys(room.users);
             let adminUser = '';
