@@ -75,6 +75,11 @@ let Timer: any;
 let roomData: any;
 let hitTween: any;
 
+let currentSpectatePlayerName: any;
+let spectatePlayerText: any;
+
+let isDestroyed = false;
+
 class GameScene extends Phaser.Scene {
     constructor() {
         super({
@@ -107,6 +112,7 @@ class GameScene extends Phaser.Scene {
         this.load.image('bomb-planted', 'assets/sprites/bomb-plant.png')
         this.load.image('siteA', 'assets/sprites/siteA.png')
         this.load.image('siteB', 'assets/sprites/siteB.png')
+        this.load.image('arrow', 'assets/sprites/arrow.png')
     }
       
     create(): void {
@@ -254,7 +260,6 @@ class GameScene extends Phaser.Scene {
             send_pose(player);
         }, 100);
 
-
         isStarted = true;
     }
 
@@ -335,6 +340,11 @@ class GameScene extends Phaser.Scene {
             if(isDiffusing && !bombDiffuseButton.isDiffusePressed()) {
                 stopDiffusing();
             }
+        }
+
+        if(!isAlive && vision && currentSpectatePlayerName) {
+            vision.x = allies[currentSpectatePlayerName].x;
+            vision.y = allies[currentSpectatePlayerName].y;
         }
 
         for(let bulletId in bulletMap) {
@@ -522,6 +532,80 @@ function stopDiffusing() {
     isDiffusing = false
 }
 
+function makeSpectateUI() {
+    let scene = game.scene.scenes[0];
+    let y = scene.cameras.main.height * 0.8;
+    let x = scene.cameras.main.width / 2;
+
+    let sidePad = scene.cameras.main.width / 4;
+
+    spectatePlayerText = scene.add.text(x, y ,`${username}`, { color: '#FFFFFF', backgroundColor: 'rgba(0,0,0,0.5)', font: '2.5em' }).setOrigin(0.5, 0.5).setScrollFactor(0, 0).setDepth(104).setPadding(sidePad, 20, sidePad, 20 );
+    let tr: any = spectatePlayerText.getTopRight();
+    let tl: any = spectatePlayerText.getTopLeft();
+    let rightArrow = scene.add.image(tr.x , y, 'arrow').setOrigin(0.4, 0.5).setScrollFactor(0, 0).setDepth(104).setScale(0.15, 0.15).setName('rightArrow').setInteractive();
+    let leftArrow = scene.add.image(tl.x , y, 'arrow').setOrigin(0.4, 0.5).setScrollFactor(0, 0).setDepth(104).setScale(0.15, 0.15).setRotation(-1 * Math.PI).setName('leftArrow').setInteractive();
+
+    scene.input.on('gameobjectdown', (objA: any, objB: any) => {
+        let aliveAllies: string[] = [];
+        for(let ally in allies) {
+            if(allies[ally].isAlive) {
+                aliveAllies.push(ally);
+            }
+        }
+
+        if(aliveAllies.length > 0) {
+            if(currentSpectatePlayerName) {
+                let index = aliveAllies.indexOf(currentSpectatePlayerName);
+                if(index != -1) {
+                    if(objB.name == 'rightArrow') {
+                        currentSpectatePlayerName = index + 1 > aliveAllies.length - 1 ? aliveAllies[0] : aliveAllies[index + 1];
+                    } else if (objB.name == 'leftArrow') {
+                        currentSpectatePlayerName = index - 1 < 0 ? aliveAllies[aliveAllies.length - 1] : aliveAllies[index - 1];
+                    }
+                } else {
+                    currentSpectatePlayerName = aliveAllies[0];
+                }
+            } else {
+                currentSpectatePlayerName = aliveAllies[0];
+            }
+            
+            if(objB.name == 'rightArrow' || objB.name == 'leftArrow') {
+                spectatePlayer();
+            }
+        }
+    })
+}
+
+function autoChangeSpectateOnKill() {
+    let aliveAllies: string[] = [];
+    if(aliveAllies.length > 0) {
+        for(let ally in allies) {
+            if(allies[ally].isAlive) {
+                aliveAllies.push(ally);
+            }
+        }
+    
+        if(currentSpectatePlayerName) {
+            let index = aliveAllies.indexOf(currentSpectatePlayerName);
+            if(index != -1) {
+                currentSpectatePlayerName = index + 1 > aliveAllies.length - 1 ? aliveAllies[0] : aliveAllies[index + 1];
+            } else {
+                currentSpectatePlayerName = aliveAllies[0];
+            }
+        } else {
+            currentSpectatePlayerName = aliveAllies[0];
+        }
+        
+        spectatePlayer();
+    }
+}
+
+function spectatePlayer() {
+    let scene = game.scene.scenes[0];
+    spectatePlayerText.setText(currentSpectatePlayerName);
+    scene.cameras.main.startFollow(allies[currentSpectatePlayerName]);
+}
+
 function makeScoreUI(this: any) {
     let minute = Math.floor(roundTimeLeft / 60);
     let seconds: any = roundTimeLeft % 60;
@@ -566,7 +650,7 @@ function startBombTimer() {
 }
 
 function onHitAnim(sprite: any) {    
-    if(hitTween) {
+    if(hitTween && hitTween.isPlaying()) {
         hitTween.remove();
         hitTween.destroy();
         sprite.setAlpha(1);
@@ -729,6 +813,10 @@ export function renderMatchWinner(winner: string) {
     setTimeout(() => {
         game.destroy(true);
         event.setMenu();
+        isDestroyed = true;
+        ws.close();
+        ws = new WebSocket(`ws://localhost:7000?user=${username}`);
+        setWsListeners(ws);
     }, 5000)
 }
 
@@ -885,6 +973,10 @@ function killPlayer(sprite: any, uid: string) {
     if(username == uid) {
         isAlive = false;
         clearInterval(interval);
+        makeSpectateUI();
+        autoChangeSpectateOnKill();
+    } else if(uid == currentSpectatePlayerName) {
+        autoChangeSpectateOnKill();
     }
 
     sprite.isAlive = false;
@@ -1015,17 +1107,22 @@ function renderInitialPlayers() {
     }
 }
 
-window.onload = () => {
-    username = prompt('Enter username!') ?? "null"
-    ws = new WebSocket(`wss://b84e-183-82-102-119.ngrok-free.app?user=${username}`);
-
+function setWsListeners(ws: any) {
     ws.addEventListener("error", (event: any) => {
         alert(`Error: ${JSON.stringify(event)}`);
     });
     
     ws.onopen = () => {
-        let playerData: any = {}
-        playerData[username] = 100;
+        // let playerData: any = {}
+        // playerData[username] = 100;
+        // playerData['abcd'] = {
+        //     team: "TERRORIST",
+        //     pos_x: 1600,
+        //     pos_y: 1600,
+        //     angle: 0,
+        //     health: 100,
+        //     isAlive: true
+        // }
         // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
         event = new Events(ws, username);
     }
@@ -1038,6 +1135,12 @@ window.onload = () => {
             console.log(e);
         } 
     }
+}
+
+window.onload = () => {
+    username = prompt('Enter username!') ?? "null"
+    ws = new WebSocket(`ws://localhost:7000?user=${username}`);
+    setWsListeners(ws);
 };
 
 function resetVariables() {
@@ -1097,6 +1200,8 @@ function resetVariables() {
     Timer = undefined;
     roomData = undefined;
     hitTween = undefined;
+    currentSpectatePlayerName = undefined;
+    spectatePlayerText = undefined;
 }
 
 function ClearAllIntervals() {
@@ -1118,10 +1223,11 @@ export function startGame(spawn: any, team: string, users: any, score: any, time
         y: bomb.y
     }
 
-    if(game) {
+    if(game && !isDestroyed) {
         game.scene.scenes[0].scene.restart();
     } else {
         game = new Phaser.Game(config);
+        isDestroyed = false;
     }
 }
 
