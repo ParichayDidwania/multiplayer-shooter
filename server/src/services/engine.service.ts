@@ -366,7 +366,6 @@ export class Engine {
         let enemy = room.users[enemyUid];
         let dist = this.getDistanceBetweenPoints(bulletCoords.x, bulletCoords.y, enemy.pos_x, enemy.pos_y);
 
-
         if(dist <= GAMECONSTANTS.HIT_REG_RADIUS) {
             enemy.health -= GAMECONSTANTS.SHOT_DAMAGE;
             if(enemy.health <= 0) {
@@ -429,6 +428,7 @@ export class Engine {
             user.angle = user.spawn.angle;
             user.health = GAMECONSTANTS.MAX_HEALTH
             user.isAlive = true;
+            user.shots = [];
         }
         room.bomb = {
             isPicked: {

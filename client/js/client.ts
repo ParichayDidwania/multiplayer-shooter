@@ -33,7 +33,7 @@ let playerSpawn: any;
 let playerTeam: string;
 
 let initialPlayerData: any;
-let interval: any;
+let timeout: any;
 let scoreBoard: any;
 let roundTimeLeft: number;
 let roundTimerInterval: any;
@@ -255,10 +255,7 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        interval = setInterval(() => {
-            console.log(`sending pos`);
-            send_pose(player);
-        }, 100);
+        setPosTimeout(player);
 
         isStarted = true;
     }
@@ -342,17 +339,19 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        if(!isAlive && vision && currentSpectatePlayerName) {
-            vision.x = allies[currentSpectatePlayerName].x;
-            vision.y = allies[currentSpectatePlayerName].y;
-        }
-
         for(let bulletId in bulletMap) {
             bulletMap[bulletId].x += bulletMap[bulletId].body.velocityX * (delta/1000);
             bulletMap[bulletId].y += bulletMap[bulletId].body.velocityY * (delta/1000);
         }        
     }
 };
+
+function setPosTimeout(player: any) {
+    timeout = setTimeout(() => {
+        send_pose(player);
+        setPosTimeout(player);
+    }, 100)
+}
 
 function reload() {
     let dotArray = ['.', '..', '...']
@@ -603,6 +602,10 @@ function autoChangeSpectateOnKill() {
 function spectatePlayer() {
     let scene = game.scene.scenes[0];
     spectatePlayerText.setText(currentSpectatePlayerName);
+    if(!isAlive && vision) {
+        vision.x = allies[currentSpectatePlayerName].x;
+        vision.y = allies[currentSpectatePlayerName].y;
+    }
     scene.cameras.main.startFollow(allies[currentSpectatePlayerName]);
 }
 
@@ -788,7 +791,7 @@ export function renderPlayer(uid: string, x: number, y: number, angle: number, t
             delay: 10,
             loop: true,
             callback: interpolate,
-            args: [player, x_pos, y_pos, angle_arr]
+            args: [uid, player, x_pos, y_pos, angle_arr]
         })
     }
 }
@@ -801,7 +804,7 @@ export function renderRoundWinner(winner: string, isExploded: boolean) {
     }
     setTimeout(() => {
         clearInterval(bulletReloadAnimInterval);
-        clearInterval(interval);
+        clearTimeout(timeout);
         winnerLabel.destroy();
     }, 5000)
     clearInterval(roundTimerInterval);
@@ -820,7 +823,7 @@ export function renderMatchWinner(winner: string) {
     }, 5000)
 }
 
-function interpolate(player: any, x_pos: any, y_pos: any, angle_arr: any) {
+function interpolate(uid: string, player: any, x_pos: any, y_pos: any, angle_arr: any) {
     let newX = Phaser.Math.Interpolation.Linear(x_pos, player.incr);
     let newY = Phaser.Math.Interpolation.Linear(y_pos, player.incr);
     let newA = Phaser.Math.Interpolation.Linear(angle_arr, player.incr);
@@ -828,6 +831,10 @@ function interpolate(player: any, x_pos: any, y_pos: any, angle_arr: any) {
     player.setRotation(Phaser.Math.Angle.Wrap(newA));
     player.label.x = newX;
     player.label.y = newY - 60;
+    if(!isAlive && vision && currentSpectatePlayerName && currentSpectatePlayerName == uid) {
+        vision.x = newX;
+        vision.y = newY;
+    }
     player.incr += 0.1
     if(player.incr > 1) {
         if(!player.isAlive) {
@@ -972,7 +979,7 @@ function killPlayer(sprite: any, uid: string) {
     let scene = game.scene.scenes[0];
     if(username == uid) {
         isAlive = false;
-        clearInterval(interval);
+        clearTimeout(timeout);
         makeSpectateUI();
         autoChangeSpectateOnKill();
     } else if(uid == currentSpectatePlayerName) {
@@ -1166,7 +1173,7 @@ function resetVariables() {
     playerSpawn = undefined;
     playerTeam = '';
     initialPlayerData = undefined ;
-    interval = undefined;
+    timeout = undefined;
     scoreBoard = undefined;
     roundTimeLeft = -1;
     roundTimerInterval = undefined;
