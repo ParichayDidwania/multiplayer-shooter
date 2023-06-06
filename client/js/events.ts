@@ -50,7 +50,7 @@ export class Events {
             
             case 'HEALTH':
                 if(isInit()) {
-                    updateHealth(event.uid, event.team, event.health, event.isAlive);
+                    updateHealth(event.uid, event.team, event.health, event.isAlive, event.shooter);
                 }
                 break;
 

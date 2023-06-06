@@ -51,7 +51,10 @@ export class EventManager {
             case "HIT":
                 let healthObj = this.engine.validateHit(socket.room_id, socket.user_id, message.enemyUid, message.shot_id);
                 if(healthObj) {
-                    this.broadcastHealth(socket.room_id, healthObj.uid, healthObj.team, healthObj.health, healthObj.isAlive);
+                    this.broadcastHealth(socket.room_id, healthObj.uid, healthObj.team, healthObj.health, healthObj.isAlive, socket.user_id);
+                    if(!healthObj.isAlive) {
+                        this.engine.checkRoundStatus(socket.room_id);
+                    }
                 }
                 break;
 
@@ -124,15 +127,22 @@ export class EventManager {
         }
     }
 
-    broadcastHealth(room_id: string, uid: string, team: Team, health: number, isAlive: boolean) {
+    broadcastHealth(room_id: string, uid: string, team: Team, health: number, isAlive: boolean, shooter: string) {
         let socketRoom = this.socketRooms[room_id];
+        let shooterUser = this.engine.getRoomData(room_id).users[shooter];
         for(let socket of socketRoom) {
             socket.send(JSON.stringify({
                 event_name: "HEALTH",
                 uid: uid,
                 team: team,
                 health: health,
-                isAlive: isAlive
+                isAlive: isAlive,
+                shooter: {
+                    uid: shooter,
+                    team: shooterUser.team,
+                    kills: shooterUser.kills,
+                    deaths: shooterUser.deaths
+                },
             }))
         }
     }

@@ -79,6 +79,12 @@ let currentSpectatePlayerName: any;
 let spectatePlayerText: any;
 
 let isDestroyed = false;
+let playerScoreTexts: any = {
+    'COUNTER_TERRORIST': [],
+    'TERRORIST': []
+}
+let scoreBoardBtn: any;
+let scoreBoardElements: any = [];
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -159,7 +165,7 @@ class GameScene extends Phaser.Scene {
         let bounds = this.matter.world.setBounds(map.widthInPixels, map.heightInPixels);
         Object.values(bounds.walls).forEach(o => o.label = 'bounds');
 
-        player = createPlayer(username ?? "UNNAMED", Category.SELF, playerSpawn.pos_x, playerSpawn.pos_y, playerSpawn.angle, initialPlayerData[username].health, playerTeam);
+        player = createPlayer(username ?? "UNNAMED", Category.SELF, playerSpawn.pos_x, playerSpawn.pos_y, playerSpawn.angle, initialPlayerData[username].health, playerTeam, initialPlayerData[username].kills, initialPlayerData[username].deaths);
         isAlive = true;
         healthBar = makeBar.call(this, 5, this.cameras.main.height - 100, 0xc0c0c0);
         makeScoreUI.call(this)
@@ -206,6 +212,7 @@ class GameScene extends Phaser.Scene {
         wasd = this.input.keyboard?.addKeys({ 'W': Phaser.Input.Keyboard.KeyCodes.W, 'S': Phaser.Input.Keyboard.KeyCodes.S, 'A': Phaser.Input.Keyboard.KeyCodes.A, 'D': Phaser.Input.Keyboard.KeyCodes.D });
         reloadBtn = this.input.keyboard?.addKeys({ 'R': Phaser.Input.Keyboard.KeyCodes.R });
         bombDropBtn = this.input.keyboard?.addKeys({ 'G': Phaser.Input.Keyboard.KeyCodes.G });
+        scoreBoardBtn = this.input.keyboard?.addKeys({ 'TAB': Phaser.Input.Keyboard.KeyCodes.TAB })
         
         wasd.check_pressed_up = function () { return this.W.isDown };
         wasd.check_pressed_down = function () { return this.S.isDown };
@@ -213,6 +220,7 @@ class GameScene extends Phaser.Scene {
         wasd.check_pressed_right = function () { return this.D.isDown };
         reloadBtn.isReloadPressed = function() { return this.R.isDown };
         bombDropBtn.isDropPressed = function() { return this.G.isDown };
+        scoreBoardBtn.isDownPressed = function() { return this.TAB.isDown };
         
         if(playerTeam == 'TERRORIST') {
             bombPlantBtn = this.input.keyboard?.addKeys({ 'E': Phaser.Input.Keyboard.KeyCodes.E });
@@ -257,6 +265,7 @@ class GameScene extends Phaser.Scene {
 
         setPosTimeout(player);
 
+        makeLeaderBoard();
         isStarted = true;
     }
 
@@ -339,6 +348,12 @@ class GameScene extends Phaser.Scene {
             }
         }
 
+        if(scoreBoardBtn.isDownPressed()) {
+            makeScoreBoardVisible(true);
+        } else {
+            makeScoreBoardVisible(false);
+        }
+
         for(let bulletId in bulletMap) {
             bulletMap[bulletId].x += bulletMap[bulletId].body.velocityX * (delta/1000);
             bulletMap[bulletId].y += bulletMap[bulletId].body.velocityY * (delta/1000);
@@ -385,6 +400,135 @@ function makeBar(this: any, x: number, y: number, color: number) {
     bar.x = 50;
     bar.y = topRight.y + 25;
     return bar;
+}
+
+function makeLeaderBoard() {
+    let scene = game.scene.scenes[0];
+    let startCoords = { x: scene.cameras.main.width / 3, y: scene.cameras.main.height / 3 };
+    let width = startCoords.x;
+
+    let font = '2em bold Times New Roman'
+    let ctBackground = 'rgb(0,0,0,0.5)';
+    let textColor = '#0096ff';
+    let textColor2 = '#FFBF00';
+    let ctText: any = scene.add.text(startCoords.x, startCoords.y, `Counter Terrorist`, { color: textColor, backgroundColor: ctBackground, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(width, 0).setPadding(5);
+    makeLbColumns(ctText.getBottomLeft().x, ctText.getBottomLeft().y, width, ctBackground, font, textColor, 'COUNTER_TERRORIST');
+    let tText: any = scene.add.text(startCoords.x, startCoords.y + (ctText.height * 7), `Terrorist`, { color: textColor2, backgroundColor: ctBackground, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(width, 0).setPadding(5);
+    makeLbColumns(tText.getBottomLeft().x, tText.getBottomLeft().y, width, ctBackground, font, textColor2, 'TERRORIST');
+    scoreBoardElements.push(...[ctText, tText])
+}
+
+function makeLbColumns(x: number, y: number, width: number, background: string, font: string, textColor: string, team: string) {
+    let scene = game.scene.scenes[0];
+    let nameWidth = width * 0.7;
+    let restWidth = width * 0.15;
+    let nameHeading: any = scene.add.text(x, y , `Name`, { color: textColor, backgroundColor: background, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(nameWidth, 0).setPadding(5);
+    let killsHeading: any = scene.add.text(nameHeading.getTopRight().x, nameHeading.getTopRight().y, `Kills`, { color: textColor, backgroundColor: background, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(restWidth, 0).setPadding(5);
+    let DeathsHeading: any = scene.add.text(killsHeading.getTopRight().x, killsHeading.getTopRight().y, `Deaths`, { color: textColor, backgroundColor: background, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(restWidth, 0).setPadding(5);
+    let fontColor = { alive: '#FFFFFF', dead: '#FF0000' }
+    scoreBoardElements.push(...[nameHeading, killsHeading, DeathsHeading])
+    addPlayersToLb(team, nameHeading.getBottomLeft().x, DeathsHeading.getBottomLeft().y, width, DeathsHeading.height, background, '2em Times New Roman', fontColor);
+}
+
+function addPlayersToLb(team: string, x: number, y: number, width: number, height: number, background: string, font: string, textColor: any) {
+    let scene = game.scene.scenes[0];
+
+    let users;
+    if(team == playerTeam) {
+        let selfObj: any = {};
+        selfObj[username] = player;
+        users = { ...allies, ...selfObj};
+    } else {
+        users = enemies;
+    }
+
+    let nameWidth = width * 0.7;
+    let restWidth = width * 0.15;
+
+    let userIds = Object.keys(users);
+
+    for(let i = 0; i < 5; i++) {
+        if(userIds[i]) {
+            let user = users[userIds[i]];
+            let color = user.isAlive ? textColor.alive : textColor.dead;
+            let name: any = scene.add.text(x, y + (height * i), `${userIds[i]}`, { color: color, backgroundColor: background, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(nameWidth, 0).setPadding(5);
+            let kills: any = scene.add.text(name.getTopRight().x, y + (height * i), `${user.kills}`, { color: color, backgroundColor: background, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(restWidth, 0).setPadding(5);
+            let deaths: any = scene.add.text(kills.getTopRight().x, y + (height * i), `${user.deaths}`, { color: color, backgroundColor: background, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(restWidth, 0).setPadding(5);
+            playerScoreTexts[team].push({ name: name, kills: kills, deaths: deaths });
+            scoreBoardElements.push(...[name, kills, deaths])
+        } else {
+            let empty: any = scene.add.text(x, y + (height * i), ` `, { backgroundColor: background, font: font }).setOrigin(0, 0).setDepth(200).setScrollFactor(0, 0).setFixedSize(width, 0).setPadding(5);
+            playerScoreTexts[team].push({ empty: empty });
+            scoreBoardElements.push(...[empty])
+        }
+    }
+}
+
+function resetScoreBoard() {
+    let parsedEnemies = [];
+    let parsedAllies = [];
+    for(let enemy in enemies) {
+        parsedEnemies.push({
+            name: enemy,
+            kills: enemies[enemy].kills,
+            deaths: enemies[enemy].deaths,
+            kd: enemies[enemy].kills/enemies[enemy].deaths,
+            isAlive: enemies[enemy].isAlive
+        })
+    }
+
+    for(let ally in allies) {
+        parsedAllies.push({
+            name: ally,
+            kills: allies[ally].kills,
+            deaths: allies[ally].deaths,
+            kd: allies[ally].kills/allies[ally].deaths,
+            isAlive: allies[ally].isAlive
+        })
+    }
+
+    parsedAllies.push({
+        name: username,
+        kills: player.kills,
+        deaths: player.deaths,
+        kd: player.kills/player.deaths,
+        isAlive: isAlive
+    })
+
+    parsedEnemies.sort((a: any, b: any) => {
+        return b.kd - a.kd;
+    })
+    parsedAllies.sort((a: any, b: any) => {
+        return b.kd - a.kd;
+    })
+
+    for(let team in playerScoreTexts) {
+        let users: any;
+        if(team == playerTeam) {
+            users = parsedAllies;
+        } else {
+            users = parsedEnemies;
+        }
+
+        for(let i = 0; i < users.length; i++) {
+            let textObj = playerScoreTexts[team][i];
+            textObj.name.setText(users[i].name);
+            textObj.kills.setText(users[i].kills);
+            textObj.deaths.setText(users[i].deaths);
+
+            if(!users[i].isAlive) {
+                textObj.name.setColor('#FF0000');
+                textObj.kills.setColor('#FF0000');
+                textObj.deaths.setColor('#FF0000');
+            }
+        }
+    }
+}
+
+function makeScoreBoardVisible(val: boolean) {
+    for(let elem of scoreBoardElements) {
+        elem.setVisible(val);
+    }
 }
 
 function renderBomb(isPlanted = false) {
@@ -717,8 +861,8 @@ const config = {
     scene: [GameScene]
 }
 
-function add_player(uid: string, x: number, y: number, category: Category, angle: number, health: number, team: string) {
-    let sprite = createPlayer(uid, category, x, y, angle, health, team);
+function add_player(uid: string, x: number, y: number, category: Category, angle: number, health: number, team: string, kills: number, deaths: number) {
+    let sprite = createPlayer(uid, category, x, y, angle, health, team, kills, deaths);
     if(category == Category.ENEMY) {
         enemies[uid] = sprite;  
     } else {
@@ -756,20 +900,20 @@ export function explode() {
     scene.cameras.main.shake(500);
 }
 
-export function renderPlayer(uid: string, x: number, y: number, angle: number, team: string, health: number = 100) {
+export function renderPlayer(uid: string, x: number, y: number, angle: number, team: string, health: number = 100, kills = 0, deaths = 0) {
     let scene = game.scene.scenes[0];
     let player;
     if(team != playerTeam) {
         if (enemies[uid] != undefined) {
             player = enemies[uid];
         } else {
-            player = add_player(uid, x, y, Category.ENEMY, angle, health, team);
+            player = add_player(uid, x, y, Category.ENEMY, angle, health, team, kills, deaths);
         }
     } else {
         if(allies[uid] != undefined) {
             player = allies[uid];
         } else {
-            player = add_player(uid, x, y, Category.ALLY, angle, health, team);
+            player = add_player(uid, x, y, Category.ALLY, angle, health, team, kills, deaths);
         }
     }
 
@@ -953,7 +1097,7 @@ export function renderBullets(x: number, y: number, angle: number, uid: string, 
     shoot(x, y, angle, undefined, uid, team);
 }
 
-export function updateHealth(uid: string, team: string, health: number, isAlive: boolean) {
+export function updateHealth(uid: string, team: string, health: number, isAlive: boolean, shooter: any = undefined) {
     let sprite: any;
     if(uid == username) {
         setBarValue(healthBar, health);
@@ -962,14 +1106,29 @@ export function updateHealth(uid: string, team: string, health: number, isAlive:
         if(team == playerTeam) {
             allies[uid].health = health;
             sprite = allies[uid];
+            if(!isAlive && shooter) {
+                enemies[shooter.uid].kills = shooter.kills;
+                enemies[shooter.uid].deaths = shooter.deaths;
+            }
         } else {
             enemies[uid].health = health;
             sprite = enemies[uid];
+            if(!isAlive && shooter) {
+                if(shooter.uid == username) {
+                    player.kills = shooter.kills;
+                    player.deaths = shooter.deaths;
+                } else {
+                    allies[shooter.uid].kills = shooter.kills;
+                    allies[shooter.uid].deaths = shooter.deaths;
+                }
+            }
         }
     }
 
     if(!isAlive) {
+        sprite.deaths ++;
         killPlayer(sprite, uid);
+        resetScoreBoard()
     } else {
         onHitAnim(sprite);
     }
@@ -1006,7 +1165,7 @@ function send_pose(player: any) {
     }))
 }
 
-function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200, angle: number = Math.PI, health: number, team: string) {
+function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200, angle: number = Math.PI, health: number, team: string, kills: number, deaths: number) {
     let scene = game.scene.scenes[0];
     let localLabel;
     switch(category) {
@@ -1049,6 +1208,9 @@ function createPlayer(uid: string, category: Category, x: number = 200, y: numbe
     player.last_shot = 0;
     player.active = true;
     player.hasBomb = false;
+
+    player.kills = kills;
+    player.deaths = deaths;
 
     return player;
 }
@@ -1103,7 +1265,7 @@ function renderInitialPlayers() {
         }
 
         let user = initialPlayerData[userId];
-        renderPlayer(userId, user.pos_x, user.pos_y, user.angle, user.team, user.health);
+        renderPlayer(userId, user.pos_x, user.pos_y, user.angle, user.team, user.health, user.kills, user.deaths);
     }
 
     let combined = { ...allies, ...enemies };
@@ -1120,17 +1282,28 @@ function setWsListeners(ws: any) {
     });
     
     ws.onopen = () => {
-        // let playerData: any = {}
-        // playerData[username] = 100;
-        // playerData['abcd'] = {
-        //     team: "TERRORIST",
-        //     pos_x: 1600,
-        //     pos_y: 1600,
-        //     angle: 0,
-        //     health: 100,
-        //     isAlive: true
-        // }
-        // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
+        let playerData: any = {}
+        playerData[username] = {
+            team: "COUNTER_TERRORIST",
+            pos_x: 1700,
+            pos_y: 1700,
+            angle: 0,
+            health: 100,
+            isAlive: true,
+            kills: 3,
+            deaths: 1
+        };
+        playerData['abcd'] = {
+            team: "COUNTER_TERRORIST",
+            pos_x: 1600,
+            pos_y: 1600,
+            angle: 0,
+            health: 100,
+            isAlive: true,
+            kills: 1,
+            deaths: 2
+        }
+        // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'COUNTER_TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
         event = new Events(ws, username);
     }
 
@@ -1209,6 +1382,10 @@ function resetVariables() {
     hitTween = undefined;
     currentSpectatePlayerName = undefined;
     spectatePlayerText = undefined;
+    playerScoreTexts = {
+        'COUNTER_TERRORIST': [],
+        'TERRORIST': []
+    }
 }
 
 function ClearAllIntervals() {

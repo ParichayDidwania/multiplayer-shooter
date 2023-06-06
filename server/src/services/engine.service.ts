@@ -76,7 +76,9 @@ export class Engine {
                 x: -1,
                 y: -1,
                 angle: 0
-            }
+            },
+            kills: 0,
+            deaths: 0
         }
         room.users[uid] = user;
     }
@@ -220,14 +222,18 @@ export class Engine {
 
     startRoundTimer(room: Room, room_id: string) {
         room.timer = setTimeout(() => {
-            this.endRound(room_id, Team.COUNTER_TERRORIST);
+            try {
+                this.endRound(room_id, Team.COUNTER_TERRORIST);
+            } catch (e) {};
         }, GAMECONSTANTS.ROUND_TIME * 1000)
     }
 
     startBombTimer(room: Room, room_id: string) {
         room.timer = setTimeout(() => {
-            room.bomb.isExploded = true;
-            this.endRound(room_id, Team.TERRORIST);
+            try {
+                room.bomb.isExploded = true;
+                this.endRound(room_id, Team.TERRORIST);
+            } catch (e) {}
         }, GAMECONSTANTS.BOMB_TIMER * 1000)
     }
 
@@ -369,6 +375,8 @@ export class Engine {
         if(dist <= GAMECONSTANTS.HIT_REG_RADIUS) {
             enemy.health -= GAMECONSTANTS.SHOT_DAMAGE;
             if(enemy.health <= 0) {
+                room.users[uid].kills ++;
+                enemy.deaths ++;
                 enemy.isAlive = false;
                 enemy.health = 0;
                 if(room.bomb.isPicked.value && room.bomb.isPicked.by == enemyUid) {
@@ -376,7 +384,6 @@ export class Engine {
                     room.bomb.y = enemy.pos_y;
                     this.broadcastBombDropped(room_id, enemyUid);
                 }
-                this.checkRoundStatus(room_id);
             }
             return { uid: enemyUid, team: enemy.team, health: enemy.health, isAlive: enemy.isAlive };
         }
@@ -694,13 +701,15 @@ export class Engine {
         }
 
         setTimeout(() => {
-            let { isMatchEnded, winner } = this.getMatchWinner(room);
-            if(isMatchEnded) {
-                room.state = State.MATCH_ENDED
-                this.broadcastMatchEnd(room_id, winner);
-            } else {
-                this.broadcastRoomData(room_id);
-            }
+            try {
+                let { isMatchEnded, winner } = this.getMatchWinner(room);
+                if(isMatchEnded) {
+                    room.state = State.MATCH_ENDED
+                    this.broadcastMatchEnd(room_id, winner);
+                } else {
+                    this.broadcastRoomData(room_id);
+                }
+            } catch(e) {}
         }, 5000)
     }
 

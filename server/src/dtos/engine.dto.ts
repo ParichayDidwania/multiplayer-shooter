@@ -20,7 +20,9 @@ export type User = {
     isAdmin: boolean,
     status: ConnectionStatus,
     shots: Shot[],
-    spawn: UserSpawnPoint
+    spawn: UserSpawnPoint,
+    kills: number,
+    deaths: number
 }
 
 export type Bomb = {
