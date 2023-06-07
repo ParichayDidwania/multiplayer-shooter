@@ -172,6 +172,10 @@ export class Engine {
         let room = this.createRoomData(room_id);
         this.rooms[room_id] = room;
 
+        setTimeout(() => {
+            delete this.rooms[room_id];
+        }, 15 * 60 * 1000)
+
         this.addUserToRoom(room_id, uid, true);
     }
 
@@ -289,6 +293,7 @@ export class Engine {
 
             if(total == disconnected) {
                 clearTimeout(room.timer);
+                room.state = State.MATCH_ENDED;
                 delete this.rooms[room.room_id];
             }
         }
@@ -382,6 +387,9 @@ export class Engine {
                 if(room.bomb.isPicked.value && room.bomb.isPicked.by == enemyUid) {
                     room.bomb.x = enemy.pos_x;
                     room.bomb.y = enemy.pos_y;
+                    room.bomb.isPicked = {
+                        value: false
+                    }
                     this.broadcastBombDropped(room_id, enemyUid);
                 }
             }
@@ -715,18 +723,20 @@ export class Engine {
 
     public broadcastRoomData(room_id: string) {
         let room = this.getRoomData(room_id);
-        this.resetPlayerStats(room);
-        if(room.state == State.MATCH_STARTED) {
-            this.updateRoundData(room, room_id);
-        }
-        let parsedRoom = { ...room };
-        parsedRoom.timer = undefined;
-        for(let socket of this.socketRooms[room_id]) {
-            socket.send(JSON.stringify({
-                event_name: "ROOM_DATA",
-                room: parsedRoom,
-                time_left: Math.floor((room.current_round_start_timestamp + (GAMECONSTANTS.ROUND_TIME * 1000) - new Date().getTime())/1000)
-            }))
+        if(room) {
+            this.resetPlayerStats(room);
+            if(room.state == State.MATCH_STARTED) {
+                this.updateRoundData(room, room_id);
+            }
+            let parsedRoom = { ...room };
+            parsedRoom.timer = undefined;
+            for(let socket of this.socketRooms[room_id]) {
+                socket.send(JSON.stringify({
+                    event_name: "ROOM_DATA",
+                    room: parsedRoom,
+                    time_left: Math.floor((room.current_round_start_timestamp + (GAMECONSTANTS.ROUND_TIME * 1000) - new Date().getTime())/1000)
+                }))
+            }
         }
     }
 

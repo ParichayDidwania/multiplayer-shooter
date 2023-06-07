@@ -11,7 +11,7 @@ export class Events {
         this.uid = uid;
         this.room_id = '';
 
-        this.setMenu();
+        this.setMenu(true);
     }
 
     handleEvents(event: any) {
@@ -23,16 +23,13 @@ export class Events {
                 alert(event.message);
                 break;
 
-            case 'SELECT_TEAM':
-                this.unsetMenu();
-                this.setTeamSelection();
-                break;
-
             case 'ROOM_DATA':
+                this.unsetMenu();
                 if(event.room.users[this.uid].team != 'NONE') {
                     this.team = event.room.users[this.uid].team;
-                    this.unsetTeamSelection();
-                    this.setPreMatchData(event.room, event.time_left);
+                    this.setTeamSelection(event.room, event.time_left, false);
+                } else {
+                    this.setTeamSelection(event.room, event.time_left, true);
                 }
                 break;
 
@@ -142,52 +139,107 @@ export class Events {
     }
 
     //ws
-    setMenu() {
+    setMenu(isLoading = false) {
         let div : any = document.getElementById('menu');
         div.style.visibility = 'visible';
-        div.innerHTML = `<b>Room Id: </b><input id='room_id' type ='text' value='room123'>
-        <button id='createBtn'style = 'background-color: green;'>Create</button>
-        <button id='joinBtn'style = 'background-color: yellow;'>Join</button>
-        <button id='reconnectBtn'style = 'background-color: blue;'>Reconnect</button>`
+        div.innerHTML = `<img id="logo" src="./assets/sprites/logo.png">
+        <div id="subMenu1">
+            <span id="username"><span style="font-size: 2em;">username: </span><span style="font-size: 2em;color: red">${this.uid}</span></span><br>
+            ${!isLoading ? "<input id='room_id' type ='text' value='', placeholder='Room Id'><br><button id='createBtn'>Create</button> <br><button id='joinBtn'>Join</button> <br><button id='reconnectBtn'>Reconnect</button> <br>" :  "<div class='loader'></div>" }
+        </div>`
 
-        let createBtn: any = document.getElementById('createBtn');
-        let joinBtn: any = document.getElementById('joinBtn');
-        let reconnectBtn: any = document.getElementById('reconnectBtn');
+        div.style.backgroundImage = "url(/assets/sprites/background.jpg)";
+        div.style.width = '100vw';
+        div.style.height = '100vh'
+        div.style.backgroundSize = '100vw 100vh'
+        div.style.overflow = 'auto'
 
-        createBtn.onclick = this.sendCreateRoom.bind(this);
-        joinBtn.onclick = this.sendJoinRoom.bind(this);
-        reconnectBtn.onclick = this.sendReconnectRoom.bind(this);
+        if(!isLoading) {
+            let createBtn: any = document.getElementById('createBtn');
+            let joinBtn: any = document.getElementById('joinBtn');
+            let reconnectBtn: any = document.getElementById('reconnectBtn');
+    
+            createBtn.onclick = this.sendCreateRoom.bind(this);
+            joinBtn.onclick = this.sendJoinRoom.bind(this);
+            reconnectBtn.onclick = this.sendReconnectRoom.bind(this);
+        }
     }
 
     unsetMenu() {
         let div : any = document.getElementById('menu');
         div.innerHTML = '';
+        div.removeAttribute("style");
         div.style.visibility = 'hidden';
     }
 
-    setTeamSelection() {
-        let fieldSet : any = document.getElementById('team-selection');
-        fieldSet.style.visibility = 'visible';
-        fieldSet.innerHTML = `<fieldset><legend>Select A Team</legend>
-        <button id="teamSelectTBtn">Terrorist</button>
-        <button id="teamSelectCTBtn">Counter Terrorist</button></fieldset>`
+    getMembers(room: any) {
+        let ctList = '';
+        let tList = ''
 
-        let createBtnT: any = document.getElementById('teamSelectTBtn');
-        createBtnT.onclick = this.sendJoinTeam.bind(this, 'TERRORIST');
+        let isAdmin = false;
 
-        let createBtnCT: any = document.getElementById('teamSelectCTBtn');
-        createBtnCT.onclick = this.sendJoinTeam.bind(this, 'COUNTER_TERRORIST');
+        for(let userId in room.users) {
+            let user = room.users[userId];
+            if(!isAdmin && userId == this.uid && user.isAdmin) {
+                isAdmin = true;
+            }
+            if(user.team == 'COUNTER_TERRORIST') {
+                ctList += `<li id="name" style="color: rgba(0, 150, 255);">${userId}</li>`
+            } else if (user.team == 'TERRORIST') {
+                tList += `<li id="name" style="color: rgba(255, 191, 0);">${userId}</li>`
+            }
+        }
+
+        return { ctList, tList, isAdmin }
     }
 
-    unsetTeamSelection() {
-        let fieldSet : any = document.getElementById('team-selection');
-        fieldSet.style.visibility = 'hidden';
-        fieldSet.innerHTML = ``
-    }
+    setTeamSelection(room: any, time_left: number, renderJoin: boolean) {
+        if(room.state == 'CREATED') {
+            let div : any = document.getElementById('team-selection');
+            div.style.visibility = 'visible';
+            let { ctList, tList, isAdmin } = this.getMembers(room);
+            div.innerHTML = `<img id="logo" src="./assets/sprites/logo.png">
+            <div id="parentSubMenu2">
+                <div id="subMenu2">
+                    <div id="ct">
+                        <h2 style="color: rgba(0, 150, 255); text-align: center;">COUNTER TERRORIST</h2>
+                        <ul>
+                            ${ctList}
+                        </ul>
+                        ${renderJoin ? '<button id="teamJoinCT" style="background-color: rgba(0, 150, 255);"> JOIN </button>': ''}
+                    </div>
+                    <div id="t">
+                        <h2 style="color: rgba(255, 191, 0); text-align: center;">TERRORIST</h2>
+                        <ul>
+                            ${tList}
+                        </ul>
+                        ${renderJoin ? '<button id="teamJoinT" style="background-color: rgba(255, 191, 0);"> JOIN </button>': ''}
+                    </div>
+                </div>
+                ${isAdmin ? '<button id="startBtn">START</button>' : ''}
+                <h1 style="text-align: center; color: white;"><span style="color: #FFFFFF; font-weight: 100">Room ID: </span><span style="color: #FFFFFF; font-family:Monospace;">${room.room_id}</span></h1>
+            </div>`
 
-    setPreMatchData(room: any, time_left: number) {
-        if(room.state == 'MATCH_STARTED') {
-            this.unsetPreMatchData();
+            div.style.backgroundImage = "url(/assets/sprites/background.jpg)";
+            div.style.width = '100vw';
+            div.style.height = '100vh'
+            div.style.backgroundSize = '100vw 100vh'
+            div.style.overflow = 'auto'
+    
+            if(renderJoin) {
+                let createBtnT: any = document.getElementById('teamJoinT');
+                createBtnT.onclick = this.sendJoinTeam.bind(this, 'TERRORIST');
+        
+                let createBtnCT: any = document.getElementById('teamJoinCT');
+                createBtnCT.onclick = this.sendJoinTeam.bind(this, 'COUNTER_TERRORIST');
+            }
+    
+            if(isAdmin) {
+                let startMatchBtn : any = document.getElementById('startBtn');
+                startMatchBtn.onclick = this.sendStartMatch.bind(this);
+            }
+        } else if (room.state == 'MATCH_STARTED') {
+            this.unsetTeamSelection();
             let user = room.users[this.uid]
             let spawn = {
                 pos_x: user.pos_x,
@@ -197,54 +249,14 @@ export class Events {
             let score = this.calculateMatchScore(room);
             this.team = user.team;
             startGame(spawn, this.team, room.users, score, time_left, room.bomb);
-        } else if (room.state == 'CREATED') {
-            let div : any = document.getElementById('pre-match');
-            div.style.visibility = 'visible';
-            let playerList = '';
-            let usernames = Object.keys(room.users);
-            let adminUser = '';
-            for(let i = 0; i < usernames.length; i++) {
-                if(i == 0) {
-                    playerList += '<ul>'
-                }
-                let adminText = '';
-                if(room.users[usernames[i]].isAdmin) {
-                    adminText = room.users[usernames[i]].isAdmin ? ' (Admin)' : '';
-                    adminUser = usernames[i];
-                }
-
-                if(usernames[i] == this.uid) {
-                    this.team = room.users[usernames[i]].team;
-                }
-                
-                let team = room.users[usernames[i]].team;
-                playerList += `<li>${usernames[i]}${adminText} - Team : ${team}</li>`
-    
-                if(i == usernames.length - 1) {
-                    playerList += '</ul>'
-                } 
-            }
-            div.innerHTML = `<fieldset><legend>Lobby Stats</legend>
-            <p>PLAYERS JOINED : ${Object.keys(room.users).length}</p>
-            <p>PLAYER LIST</p>${playerList}`
-    
-            if(adminUser == this.uid) {
-                div.innerHTML += `<button id="start">START MATCH</button>`
-            }
-    
-            div.innerHTML += `</fieldset>`
-    
-            let startMatchBtn : any = document.getElementById('start');
-            if(startMatchBtn) {
-                startMatchBtn.onclick = this.sendStartMatch.bind(this);
-            }
         }
     }
 
-    unsetPreMatchData() {
-        let div : any = document.getElementById('pre-match');
-        div.innerHTML = '';
+    unsetTeamSelection() {
+        let div : any = document.getElementById('team-selection');
+        div.removeAttribute("style");
         div.style.visibility = 'hidden';
+        div.innerHTML = ``
     }
 
     calculateMatchScore(room: any) {

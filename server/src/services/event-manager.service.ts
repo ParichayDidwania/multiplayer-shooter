@@ -16,14 +16,14 @@ export class EventManager {
                 this.engine.createRoom(message.room_id, message.uid);
                 this.addToSocketRoom(socket, message.room_id);
                 socket.room_id = message.room_id;
-                this.sendTeamSelectData(socket)
+                this.engine.broadcastRoomData(message.room_id);
                 break;
 
             case "JOIN":
                 this.engine.addUserToRoom(message.room_id, message.uid);
                 this.addToSocketRoom(socket, message.room_id);
                 socket.room_id = message.room_id;
-                this.sendTeamSelectData(socket);
+                this.engine.broadcastRoomData(message.room_id);
                 break;
 
             case 'SELECTED_TEAM':
@@ -149,7 +149,7 @@ export class EventManager {
 
     sendTeamSelectData(socket: IWebSocket) {
         socket.send(JSON.stringify({
-            event_name: "SELECT_TEAM",
+            event_name: "SELECT_TEAM"
         }))
     }
 

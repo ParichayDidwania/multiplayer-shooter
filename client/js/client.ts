@@ -1280,31 +1280,33 @@ function setWsListeners(ws: any) {
     ws.addEventListener("error", (event: any) => {
         alert(`Error: ${JSON.stringify(event)}`);
     });
-    
+
+    event = new Events(ws, username);
+
     ws.onopen = () => {
-        let playerData: any = {}
-        playerData[username] = {
-            team: "COUNTER_TERRORIST",
-            pos_x: 1700,
-            pos_y: 1700,
-            angle: 0,
-            health: 100,
-            isAlive: true,
-            kills: 3,
-            deaths: 1
-        };
-        playerData['abcd'] = {
-            team: "COUNTER_TERRORIST",
-            pos_x: 1600,
-            pos_y: 1600,
-            angle: 0,
-            health: 100,
-            isAlive: true,
-            kills: 1,
-            deaths: 2
-        }
+        // let playerData: any = {}
+        // playerData[username] = {
+        //     team: "COUNTER_TERRORIST",
+        //     pos_x: 1700,
+        //     pos_y: 1700,
+        //     angle: 0,
+        //     health: 100,
+        //     isAlive: true,
+        //     kills: 3,
+        //     deaths: 1
+        // };
+        // playerData['abcd'] = {
+        //     team: "COUNTER_TERRORIST",
+        //     pos_x: 1600,
+        //     pos_y: 1600,
+        //     angle: 0,
+        //     health: 100,
+        //     isAlive: true,
+        //     kills: 1,
+        //     deaths: 2
+        // }
         // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'COUNTER_TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
-        event = new Events(ws, username);
+        event.setMenu();
     }
 
     ws.onmessage = (message: any) => {
@@ -1386,6 +1388,8 @@ function resetVariables() {
         'COUNTER_TERRORIST': [],
         'TERRORIST': []
     }
+    scoreBoardBtn = undefined;
+    scoreBoardElements = [];
 }
 
 function ClearAllIntervals() {
