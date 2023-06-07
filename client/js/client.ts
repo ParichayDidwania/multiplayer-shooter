@@ -1321,7 +1321,7 @@ function setWsListeners(ws: any) {
 
 window.onload = () => {
     username = prompt('Enter username!') ?? "null"
-    ws = new WebSocket(`ws://localhost:7000?user=${username}`);
+    ws = new WebSocket(`ws://114.29.236.173:7000?user=${username}`);
     setWsListeners(ws);
 };
 
