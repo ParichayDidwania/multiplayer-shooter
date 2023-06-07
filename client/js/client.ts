@@ -5,6 +5,8 @@ const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
 
 const MAX_BULLETS = 5;
+const URL = 'ws://185.183.182.175:7000';
+// const URL = 'ws://localhost:7000';  UNCOMMENT TO RUN LOCALLY
 
 let shot_id = 0;
 let map_shot_id = 0;
@@ -962,7 +964,7 @@ export function renderMatchWinner(winner: string) {
         event.setMenu();
         isDestroyed = true;
         ws.close();
-        ws = new WebSocket(`ws://localhost:7000?user=${username}`);
+        ws = new WebSocket(`${URL}?user=${username}`);
         setWsListeners(ws);
     }, 5000)
 }
@@ -1321,7 +1323,7 @@ function setWsListeners(ws: any) {
 
 window.onload = () => {
     username = prompt('Enter username!') ?? "null"
-    ws = new WebSocket(`ws://114.29.236.173:7000?user=${username}`);
+    ws = new WebSocket(`${URL}?user=${username}`);
     setWsListeners(ws);
 };
 
