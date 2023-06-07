@@ -32,7 +32,7 @@ Shadow Ops is released under the [MIT License](https://opensource.org/licenses/M
 
 ## Credits
 
-Shadow Ops is developed and maintained by Parichay Didwania. I would like to express our gratitude to the PhaserJS and NodeJS communities for their invaluable contributions to the project.
+Shadow Ops is developed and maintained by Parichay Didwania. I would like to express my gratitude to the PhaserJS and NodeJS communities for their invaluable contributions to the project.
 
 ## Contact
 
