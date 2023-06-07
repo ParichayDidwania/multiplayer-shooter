@@ -1,0 +1,16 @@
+FROM node:18
+ENV TZ=Asia/Kolkata
+
+RUN mkdir /usr/src/client
+WORKDIR /usr/src/client
+
+EXPOSE 8085
+
+COPY . .
+
+RUN npm i --production --silent
+
+ENTRYPOINT [ "node", "server.js" ]
+
+
+

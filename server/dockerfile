@@ -1,0 +1,16 @@
+FROM node:18
+ENV TZ=Asia/Kolkata
+
+RUN mkdir /usr/src/server
+WORKDIR /usr/src/server
+
+EXPOSE 7000
+
+COPY dist/ package.json package-lock.json ./
+
+RUN npm i --production --silent
+
+ENTRYPOINT [ "node", "main.js" ]
+
+
+
