@@ -145,7 +145,7 @@ class Engine {
         let room = this.createRoomData(room_id);
         this.rooms[room_id] = room;
         setTimeout(() => {
-            delete this.rooms[room_id];
+            this.deleteRoom(room);
         }, 15 * 60 * 1000);
         this.addUserToRoom(room_id, uid, true);
     }
@@ -231,7 +231,7 @@ class Engine {
                     break;
                 }
                 if (!adminFound) {
-                    delete this.rooms[room_id];
+                    this.deleteRoom(room);
                 }
             }
         }
@@ -247,9 +247,7 @@ class Engine {
                 }
             }
             if (total == disconnected) {
-                clearTimeout(room.timer);
-                room.state = engine_dto_1.State.MATCH_ENDED;
-                delete this.rooms[room.room_id];
+                this.deleteRoom(room);
             }
         }
     }
@@ -641,8 +639,14 @@ class Engine {
             }));
         }
         setTimeout(() => {
-            delete this.rooms[room_id];
+            this.deleteRoom(this.rooms[room_id]);
         }, 5000);
+    }
+    deleteRoom(room) {
+        clearTimeout(room.timer);
+        room.state = engine_dto_1.State.MATCH_ENDED;
+        delete this.rooms[room.room_id];
+        delete this.socketRooms[room.room_id];
     }
 }
 exports.Engine = Engine;

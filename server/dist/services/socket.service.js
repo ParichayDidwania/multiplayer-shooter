@@ -29,7 +29,6 @@ class SocketService {
                     this._eventManager.handleEvents(socket, message, this._wsserver.clients);
                 }
                 catch (e) {
-                    console.log(e);
                     socket.send(JSON.stringify({
                         event_name: "ERROR",
                         message: e.message

@@ -7,7 +7,6 @@ export class Events {
     team: string = 'NONE';
     constructor(socket: WebSocket, uid: string) {
         this.socket = socket;
-        console.log(this.socket);
         this.uid = uid;
         this.room_id = '';
 
@@ -15,9 +14,6 @@ export class Events {
     }
 
     handleEvents(event: any) {
-        if(event.event_name != 'POSITION') {
-            console.log(event);
-        }
         switch(event.event_name) {
             case 'ERROR':
                 alert(event.message);
@@ -132,7 +128,6 @@ export class Events {
     }
 
     sendStartMatch() {
-        console.log('here');
         this.socket.send(JSON.stringify({
             event_name: "START_MATCH",
         }))
