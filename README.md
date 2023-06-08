@@ -24,7 +24,8 @@ Welcome to Shadow Ops, an adrenaline-pumping 5v5 top-down tactical multiplayer s
 1. Clone the repository to your local machine.
 2. Install the necessary dependencies for both the client and server using `npm install` in the respective directories.
 3. Start the backend server by using `npm run dev` command in server directory.
-4. Start the client server (to server static files) using `npm start` in client directory.
+4. Change the server url in `client.ts` file by editing the URL variable at the top of the file to `ws://localhost:7000`.
+5. Start the client server (to server static files) using `npm start` in client directory.
 
 ## License
 
