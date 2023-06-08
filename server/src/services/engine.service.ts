@@ -173,6 +173,8 @@ export class Engine {
         this.rooms[room_id] = room;
 
         setTimeout(() => {
+            clearTimeout(room.timer);
+            room.state = State.MATCH_ENDED;
             delete this.rooms[room_id];
         }, 15 * 60 * 1000)
 
@@ -276,6 +278,8 @@ export class Engine {
                 }
 
                 if(!adminFound) {
+                    clearTimeout(room.timer);
+                    room.state = State.MATCH_ENDED;
                     delete this.rooms[room_id];
                 }
             }
@@ -761,6 +765,8 @@ export class Engine {
         }
 
         setTimeout(() => {
+            clearTimeout(this.rooms[room_id].timer);
+            this.rooms[room_id].state = State.MATCH_ENDED;
             delete this.rooms[room_id];
         }, 5000)
     }
