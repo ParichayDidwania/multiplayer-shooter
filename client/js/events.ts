@@ -14,7 +14,7 @@ export class Events {
     }
 
     handleEvents(event: any) {
-        switch(event.event_name) {
+        switch(event.eventName) {
             case 'ERROR':
                 alert(event.message);
                 break;
@@ -91,7 +91,7 @@ export class Events {
         let room_id: any = document.getElementById('room_id');
         this.room_id = room_id.value;
         this.socket.send(JSON.stringify({
-            event_name: "CREATE",
+            eventName: "CREATE",
             uid: this.uid,
             room_id: room_id.value
         }))
@@ -100,7 +100,7 @@ export class Events {
     sendJoinTeam(team: string) {
         this.team = team;
         this.socket.send(JSON.stringify({
-            event_name: "SELECTED_TEAM",
+            eventName: "SELECTED_TEAM",
             uid: this.uid,
             room_id: this.room_id,
             team: team
@@ -111,7 +111,7 @@ export class Events {
         let room_id: any = document.getElementById('room_id');
         this.room_id = room_id.value;
         this.socket.send(JSON.stringify({
-            event_name: "JOIN",
+            eventName: "JOIN",
             uid: this.uid,
             room_id: this.room_id
         }))
@@ -121,7 +121,7 @@ export class Events {
         let room_id: any = document.getElementById('room_id');
         this.room_id = room_id.value;
         this.socket.send(JSON.stringify({
-            event_name: "RECONNECT",
+            eventName: "RECONNECT",
             uid: this.uid,
             room_id: this.room_id
         }))
@@ -129,7 +129,7 @@ export class Events {
 
     sendStartMatch() {
         this.socket.send(JSON.stringify({
-            event_name: "START_MATCH",
+            eventName: "START_MATCH",
         }))
     }
 

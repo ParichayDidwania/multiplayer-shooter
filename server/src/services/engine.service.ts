@@ -500,11 +500,12 @@ export class Engine {
 
     broadcastBombPicked(room_id: string) {
         let room = this.rooms[room_id];
+        let picked = JSON.stringify({
+            eventName: 'BOMB_PICKED',
+            uid: room.bomb.isPicked.by
+        })
         for(let socket of this.socketRooms[room_id]) {
-            socket.send(JSON.stringify({
-                event_name: 'BOMB_PICKED',
-                uid: room.bomb.isPicked.by
-            }))
+            socket.send(picked);
         }
     }
 
@@ -602,13 +603,14 @@ export class Engine {
 
     broadcastBombDropped(room_id: string, uid: string) {
         let room = this.rooms[room_id];
+        let dropped = JSON.stringify({
+            eventName: 'BOMB_DROPPED',
+            uid: uid,
+            x: room.bomb.x,
+            y: room.bomb.y
+        })
         for(let socket of this.socketRooms[room_id]) {
-            socket.send(JSON.stringify({
-                event_name: 'BOMB_DROPPED',
-                uid: uid,
-                x: room.bomb.x,
-                y: room.bomb.y
-            }))
+            socket.send(dropped);
         }
     }
 
@@ -630,22 +632,24 @@ export class Engine {
     broadcastBombPlanted(room_id: string, uid: string) {
         let room = this.rooms[room_id];
         this.startBombTimer(room, room_id);
+        let planted = JSON.stringify({
+            eventName: 'BOMB_PLANTED',
+            uid: uid,
+            x: room.bomb.x,
+            y: room.bomb.y,
+            time_left: Math.floor((room.current_round_bomb_plant_timestamp + (GAMECONSTANTS.BOMB_TIMER * 1000) - new Date().getTime())/1000)
+        })
         for(let socket of this.socketRooms[room_id]) {
-            socket.send(JSON.stringify({
-                event_name: 'BOMB_PLANTED',
-                uid: uid,
-                x: room.bomb.x,
-                y: room.bomb.y,
-                time_left: Math.floor((room.current_round_bomb_plant_timestamp + (GAMECONSTANTS.BOMB_TIMER * 1000) - new Date().getTime())/1000)
-            }))
+            socket.send(planted);
         }
     }
 
     broadcastBombDiffused(room_id: string) {
+        let defused = JSON.stringify({
+            eventName: 'BOMB_DIFFUSED',
+        });
         for(let socket of this.socketRooms[room_id]) {
-            socket.send(JSON.stringify({
-                event_name: 'BOMB_DIFFUSED',
-            }))
+            socket.send(defused);
         }
         this.endRound(room_id, Team.COUNTER_TERRORIST);
     }
@@ -698,12 +702,13 @@ export class Engine {
             throw new Error('Room does not exist');
         }
         let room = this.rooms[room_id];
+        let endRound = JSON.stringify({
+            eventName: 'END_ROUND',
+            winner: room.rounds[room.current_round - 1].winner,
+            isExploded: room.bomb.isExploded
+        });
         for(let socket of this.socketRooms[room_id]) {
-            socket.send(JSON.stringify({
-                event_name: 'END_ROUND',
-                winner: room.rounds[room.current_round - 1].winner,
-                isExploded: room.bomb.isExploded
-            }))
+            socket.send(endRound);
         }
 
         setTimeout(() => {
@@ -728,12 +733,13 @@ export class Engine {
             }
             let parsedRoom = { ...room };
             parsedRoom.timer = undefined;
+            let rd = JSON.stringify({
+                eventName: "ROOM_DATA",
+                room: parsedRoom,
+                time_left: Math.floor((room.current_round_start_timestamp + (GAMECONSTANTS.ROUND_TIME * 1000) - new Date().getTime())/1000)
+            })
             for(let socket of this.socketRooms[room_id]) {
-                socket.send(JSON.stringify({
-                    event_name: "ROOM_DATA",
-                    room: parsedRoom,
-                    time_left: Math.floor((room.current_round_start_timestamp + (GAMECONSTANTS.ROUND_TIME * 1000) - new Date().getTime())/1000)
-                }))
+                socket.send(rd);
             }
         }
     }
@@ -743,7 +749,7 @@ export class Engine {
         let parsedRoom = { ...room };
         parsedRoom.timer = undefined;
         socket.send(JSON.stringify({
-            event_name: "RECONNECT",
+            eventName: "RECONNECT",
             room: parsedRoom,
             round_timer: GAMECONSTANTS.ROUND_TIME,
             bomb_timer: GAMECONSTANTS.BOMB_TIMER
@@ -751,11 +757,12 @@ export class Engine {
     }
 
     public broadcastMatchEnd(room_id: string, winner: Team) {
+        let matchEnd = JSON.stringify({
+            eventName: "END_MATCH",
+            winner: winner
+        });
         for(let socket of this.socketRooms[room_id]) {
-            socket.send(JSON.stringify({
-                event_name: "END_MATCH",
-                winner: winner
-            }))
+            socket.send(matchEnd);
         }
 
         setTimeout(() => {

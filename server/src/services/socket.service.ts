@@ -24,7 +24,7 @@ export class SocketService {
                     this._eventManager.handleEvents(socket, message, this._wsserver.clients as Set<IWebSocket>);
                 } catch (e: any) {
                     socket.send(JSON.stringify({
-                        event_name: "ERROR",
+                        eventName: "ERROR",
                         message: e.message
                     }))
                 }

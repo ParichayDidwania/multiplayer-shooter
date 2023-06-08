@@ -1,12 +1,15 @@
 import Phaser, { Game } from "phaser";
 import { Events } from "./events";
+const { Position } = require('../protos/protoFile_pb');
 
 const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
 
 const MAX_BULLETS = 5;
 const URL = 'ws://185.183.182.175:7000';
-// const URL = 'ws://localhost:7000';  UNCOMMENT TO RUN LOCALLY
+
+//UNCOMMENT TO RUN LOCALLY
+// const URL = 'ws://localhost:7000';  
 
 let shot_id = 0;
 let map_shot_id = 0;
@@ -993,31 +996,31 @@ function interpolate(uid: string, player: any, x_pos: any, y_pos: any, angle_arr
 
 function sendBombPlanted() {
     ws.send(JSON.stringify({
-        event_name: "BOMB_PLANTED",
+        eventName: "BOMB_PLANTED",
     }))
 }
 
 function sendBombDiffused() {
     ws.send(JSON.stringify({
-        event_name: "BOMB_DIFFUSED",
+        eventName: "BOMB_DIFFUSED",
     }))
 }
 
 function sendBombPicked() {
     ws.send(JSON.stringify({
-        event_name: "BOMB_PICKED",
+        eventName: "BOMB_PICKED",
     }))
 }
 
 function sendBombDrop() {
     ws.send(JSON.stringify({
-        event_name: "BOMB_DROPPED",
+        eventName: "BOMB_DROPPED",
     }))
 }
 
 function sendHit(enemyUid: string, shot_id: number) {
     ws.send(JSON.stringify({
-        event_name: "HIT",
+        eventName: "HIT",
         uid: username,
         enemyUid: enemyUid,
         shot_id: shot_id
@@ -1026,7 +1029,7 @@ function sendHit(enemyUid: string, shot_id: number) {
 
 function sendShoot(pointer_x: number, pointer_y: number, angle: number, shot_id: number, uid: string) {
     ws.send(JSON.stringify({
-        event_name: "SHOOT",
+        eventName: "SHOOT",
         id: shot_id,
         uid: uid,
         x: pointer_x,
@@ -1159,7 +1162,7 @@ let game: Phaser.Game;
 
 function send_pose(player: any) {
     ws.send(JSON.stringify({
-        event_name: "POSITION",
+        eventName: "POSITION",
         uid: username,
         x: player.x,
         y: player.y,
@@ -1282,6 +1285,7 @@ function setWsListeners(ws: any) {
     ws.addEventListener("error", (event: any) => {
         alert(`Error: ${JSON.stringify(event)}`);
     });
+    ws.binaryType = 'arraybuffer'
 
     event = new Events(ws, username);
 
@@ -1313,7 +1317,13 @@ function setWsListeners(ws: any) {
 
     ws.onmessage = (message: any) => {
         try {
-            let parsedEvent = JSON.parse(message.data.toString());
+            let parsedEvent: any;
+            if(typeof message.data == 'object') {
+                let buffer = new Uint8Array(message.data);
+                parsedEvent = Position.deserializeBinary(buffer).toObject()
+            } else {
+                parsedEvent = JSON.parse(message.data.toString());
+            }
             event.handleEvents(parsedEvent);
         } catch(e) {
             console.log(e);

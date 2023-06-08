@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "express": "^4.17.1",
+    "google-protobuf": "^3.21.2",
     "ws": "^8.13.0"
   }
 }

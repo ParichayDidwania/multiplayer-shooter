@@ -1,6 +1,8 @@
 import { IWebSocket } from "./socket.service";
 import { Engine } from "./engine.service";
 import { State, Team } from "../dtos/engine.dto";
+const { Position } = require('../../protos/protoFile_pb'); 
+
 export class EventManager {
     engine: Engine;
     socketRooms: Record<string, Array<IWebSocket>>
@@ -11,7 +13,7 @@ export class EventManager {
     }
 
     handleEvents(socket: IWebSocket, message: any, socketList: Set<IWebSocket>) {
-        switch(message.event_name) {
+        switch(message.eventName) {
             case "CREATE":
                 this.engine.createRoom(message.room_id, message.uid);
                 this.addToSocketRoom(socket, message.room_id);
@@ -101,55 +103,58 @@ export class EventManager {
 
     broadcastPlayerPosition(room_id: string, uid: string, x: number, y: number, angle: number, team: Team) {
         let socketRoom = this.socketRooms[room_id];
+        let positionProtobuf = new Position();
+        positionProtobuf.setEventName("POSITION");
+        positionProtobuf.setUid(uid)
+        positionProtobuf.setX(x)
+        positionProtobuf.setY(y)
+        positionProtobuf.setAngle(angle)
+        positionProtobuf.setTeam(team);
+        let serializedPos = positionProtobuf.serializeBinary();
         for(let socket of socketRoom) {
-            socket.send(JSON.stringify({
-                event_name: "POSITION",
-                uid: uid,
-                x: x,
-                y: y,
-                angle: angle,
-                team: team
-            }))
+            socket.send(serializedPos, { binary: true });
         }
     }
 
     broadcastShots(room_id: string, uid: string, x: number, y: number, angle: number, team: Team) {
         let socketRoom = this.socketRooms[room_id];
+        let shot = JSON.stringify({
+            eventName: "SHOOT",
+            uid: uid,
+            x: x,
+            y: y,
+            angle: angle,
+            team: team
+        })
         for(let socket of socketRoom) {
-            socket.send(JSON.stringify({
-                event_name: "SHOOT",
-                uid: uid,
-                x: x,
-                y: y,
-                angle: angle,
-                team: team
-            }))
+            socket.send(shot);
         }
     }
 
     broadcastHealth(room_id: string, uid: string, team: Team, health: number, isAlive: boolean, shooter: string) {
         let socketRoom = this.socketRooms[room_id];
         let shooterUser = this.engine.getRoomData(room_id).users[shooter];
+        let healthObj = JSON.stringify({
+            eventName: "HEALTH",
+            uid: uid,
+            team: team,
+            health: health,
+            isAlive: isAlive,
+            shooter: {
+                uid: shooter,
+                team: shooterUser.team,
+                kills: shooterUser.kills,
+                deaths: shooterUser.deaths
+            },
+        })
         for(let socket of socketRoom) {
-            socket.send(JSON.stringify({
-                event_name: "HEALTH",
-                uid: uid,
-                team: team,
-                health: health,
-                isAlive: isAlive,
-                shooter: {
-                    uid: shooter,
-                    team: shooterUser.team,
-                    kills: shooterUser.kills,
-                    deaths: shooterUser.deaths
-                },
-            }))
+            socket.send(healthObj);
         }
     }
 
     sendTeamSelectData(socket: IWebSocket) {
         socket.send(JSON.stringify({
-            event_name: "SELECT_TEAM"
+            eventName: "SELECT_TEAM"
         }))
     }
 
