@@ -173,9 +173,7 @@ export class Engine {
         this.rooms[room_id] = room;
 
         setTimeout(() => {
-            clearTimeout(room.timer);
-            room.state = State.MATCH_ENDED;
-            delete this.rooms[room_id];
+            this.deleteRoom(room);
         }, 15 * 60 * 1000)
 
         this.addUserToRoom(room_id, uid, true);
@@ -278,9 +276,7 @@ export class Engine {
                 }
 
                 if(!adminFound) {
-                    clearTimeout(room.timer);
-                    room.state = State.MATCH_ENDED;
-                    delete this.rooms[room_id];
+                    this.deleteRoom(room);
                 }
             }
         } else {
@@ -296,9 +292,7 @@ export class Engine {
             }
 
             if(total == disconnected) {
-                clearTimeout(room.timer);
-                room.state = State.MATCH_ENDED;
-                delete this.rooms[room.room_id];
+                this.deleteRoom(room);
             }
         }
     }
@@ -765,9 +759,14 @@ export class Engine {
         }
 
         setTimeout(() => {
-            clearTimeout(this.rooms[room_id].timer);
-            this.rooms[room_id].state = State.MATCH_ENDED;
-            delete this.rooms[room_id];
+            this.deleteRoom(this.rooms[room_id]);
         }, 5000)
+    }
+
+    deleteRoom(room: Room) {
+        clearTimeout(room.timer);
+        room.state = State.MATCH_ENDED;
+        delete this.rooms[room.room_id];
+        delete this.socketRooms[room.room_id];
     }
 }
