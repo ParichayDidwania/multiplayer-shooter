@@ -6,7 +6,7 @@ WORKDIR /usr/src/server
 
 EXPOSE 7000
 
-COPY dist/ package.json package-lock.json ./
+COPY dist/ package.json package-lock.json ./ protos/
 
 RUN npm i --production --silent
 

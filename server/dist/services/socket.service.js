@@ -30,7 +30,7 @@ class SocketService {
                 }
                 catch (e) {
                     socket.send(JSON.stringify({
-                        event_name: "ERROR",
+                        eventName: "ERROR",
                         message: e.message
                     }));
                 }
