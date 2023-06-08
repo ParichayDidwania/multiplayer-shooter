@@ -6,11 +6,13 @@ WORKDIR /usr/src/server
 
 EXPOSE 7000
 
-COPY dist/ package.json package-lock.json protos ./ 
+COPY package.json package-lock.json ./
+COPY dist/ ./dist
+COPY protos ./protos
 
 RUN npm i --production --silent
 
-ENTRYPOINT [ "node", "main.js" ]
+ENTRYPOINT [ "node", "dist/main.js" ]
 
 
 
