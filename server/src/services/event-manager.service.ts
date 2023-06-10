@@ -112,7 +112,7 @@ export class EventManager {
         positionProtobuf.setTeam(team);
         let serializedPos = positionProtobuf.serializeBinary();
         for(let socket of socketRoom) {
-            socket.send(serializedPos, { binary: true });
+            socket.send(serializedPos);
         }
     }
 

@@ -134,13 +134,35 @@ export class Events {
     }
 
     //ws
+    
+    unrenderControls() {
+        let controlsWrapper : any = document.getElementById('controlsWrapper');
+        controlsWrapper.remove();
+        let overlay : any = document.getElementById('overlay');
+        overlay.remove();
+        this.setMenu(false);
+    }
+
+    renderControls() {
+        let div : any = document.getElementById('menu');
+        div.innerHTML += `
+        <div id="overlay"></div>
+        <div id="controlsWrapper">
+        <img id="cross" src="./assets/sprites/cross.png">
+        <img id="controlsImg" src="./assets/sprites/controls.png">
+        </div>`
+
+        let cross: any = document.getElementById('cross');
+        cross.onclick = this.unrenderControls.bind(this);
+    }
+
     setMenu(isLoading = false) {
         let div : any = document.getElementById('menu');
         div.style.visibility = 'visible';
         div.innerHTML = `<img id="logo" src="./assets/sprites/logo.png">
         <div id="subMenu1">
             <span id="username"><span style="font-size: 2em;">username: </span><span style="font-size: 2em;color: red">${this.uid}</span></span><br>
-            ${!isLoading ? "<input id='room_id' type ='text' value='', placeholder='Room Id'><br><button id='createBtn'>Create</button> <br><button id='joinBtn'>Join</button> <br><button id='reconnectBtn'>Reconnect</button> <br>" :  "<div class='loader'></div>" }
+            ${!isLoading ? "<input id='room_id' type ='text' value='', placeholder='Room Id'><br><button id='createBtn'>Create</button> <br><button id='joinBtn'>Join</button> <br><button id='reconnectBtn'>Reconnect</button> <br> <br><button id='controlsBtn'>Controls</button> <br>" :  "<div class='loader'></div>" }
         </div>`
 
         div.style.backgroundImage = "url(/assets/sprites/background.jpg)";
@@ -153,10 +175,12 @@ export class Events {
             let createBtn: any = document.getElementById('createBtn');
             let joinBtn: any = document.getElementById('joinBtn');
             let reconnectBtn: any = document.getElementById('reconnectBtn');
+            let controlsBtn: any = document.getElementById('controlsBtn');
     
             createBtn.onclick = this.sendCreateRoom.bind(this);
             joinBtn.onclick = this.sendJoinRoom.bind(this);
             reconnectBtn.onclick = this.sendReconnectRoom.bind(this);
+            controlsBtn.onclick = this.renderControls.bind(this);
         }
     }
 

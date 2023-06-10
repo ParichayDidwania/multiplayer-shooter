@@ -7,7 +7,7 @@
   "devDependencies": {
     "@types/express": "^4.17.17",
     "@types/matter-js": "^0.18.3",
-    "@types/node": "^20.2.5",
+    "@types/node": "^20.2.6",
     "live-server": "^1.2.2",
     "phaser": "^3.60.0",
     "ts-loader": "^9.4.2",

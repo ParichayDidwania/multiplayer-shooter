@@ -1,6 +1,6 @@
 import Phaser, { Game } from "phaser";
 import { Events } from "./events";
-const { Position } = require('../protos/protoFile_pb');
+import * as proto from '../protos/protoFile_pb';
 
 const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
@@ -1161,13 +1161,17 @@ function killPlayer(sprite: any, uid: string) {
 let game: Phaser.Game;
 
 function send_pose(player: any) {
-    ws.send(JSON.stringify({
-        eventName: "POSITION",
-        uid: username,
-        x: player.x,
-        y: player.y,
-        angle: isAlive ? player.rotation : 0
-    }))
+    let positionBuffer = new (proto as any).Position();
+    positionBuffer.setEventName("POSITION");
+    positionBuffer.setUid(username)
+    positionBuffer.setX(player.x.toFixed(2))
+    positionBuffer.setY(player.y.toFixed(2))
+    positionBuffer.setAngle(isAlive ? player.rotation.toFixed(2) : 0)
+    positionBuffer.setTeam(playerTeam);
+    console.log(positionBuffer);
+    positionBuffer = positionBuffer.serializeBinary();
+
+    ws.send(positionBuffer);
 }
 
 function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200, angle: number = Math.PI, health: number, team: string, kills: number, deaths: number) {
@@ -1320,7 +1324,7 @@ function setWsListeners(ws: any) {
             let parsedEvent: any;
             if(typeof message.data == 'object') {
                 let buffer = new Uint8Array(message.data);
-                parsedEvent = Position.deserializeBinary(buffer).toObject()
+                parsedEvent = (proto as any).Position.deserializeBinary(buffer).toObject();
             } else {
                 parsedEvent = JSON.parse(message.data.toString());
             }

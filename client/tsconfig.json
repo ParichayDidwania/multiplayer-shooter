@@ -107,5 +107,9 @@
     "skipLibCheck": true,                                 /* Skip type checking all .d.ts files. */
     "lib": ["es6", "dom", "dom.iterable", "scripthost", "ES2017.Object"],
     "typeRoots": ["./node_modules/phaser/types"],
-  }
+  },
+  "include": [
+    "./**/*"
+  ],
+  "exclude": ["./dist/**/*", "./protos/**/*", "./server.js", "./webpack.config.js"]
 }

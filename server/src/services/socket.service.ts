@@ -1,6 +1,8 @@
 import { Server } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { EventManager } from './event-manager.service';
+const { Position } = require('../../protos/protoFile_pb'); 
+
 
 export class SocketService {
     private _server: Server;
@@ -19,7 +21,12 @@ export class SocketService {
         return (socket_data: Object) => {
             let message;
             try {   
-                message = JSON.parse(socket_data.toString())
+                let messageStr = socket_data.toString(); 
+                if(messageStr[0] != "{") {
+                    message = Position.deserializeBinary(socket_data).toObject();
+                } else {
+                    message = JSON.parse(messageStr);
+                }
                 try {
                     this._eventManager.handleEvents(socket, message, this._wsserver.clients as Set<IWebSocket>);
                 } catch (e: any) {
@@ -28,7 +35,9 @@ export class SocketService {
                         message: e.message
                     }))
                 }
-            } catch (err) {}
+            } catch (err) {
+                console.log(err)
+            }
         }
     }
 
