@@ -110,6 +110,6 @@
   },
   "include": [
     "./**/*"
-  ],
-  "exclude": ["./dist/**/*", "./protos/**/*", "./server.js", "./webpack.config.js"]
+, "../client1/js"  ],
+  "exclude": ["./dist/**/*", "./protos/**/*", "main.js", "./webpack.config.js"]
 }

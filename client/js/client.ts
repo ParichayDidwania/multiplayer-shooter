@@ -1,6 +1,6 @@
 import Phaser, { Game } from "phaser";
 import { Events } from "./events";
-import * as proto from '../protos/protoFile_pb';
+import * as proto from '../../client/protos/protoFile_pb';
 
 const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
@@ -90,6 +90,7 @@ let playerScoreTexts: any = {
 }
 let scoreBoardBtn: any;
 let scoreBoardElements: any = [];
+let inf = '\u{221E}';
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -249,7 +250,7 @@ class GameScene extends Phaser.Scene {
                         shootPreprocess(player);
                         player.last_shot = 0;
                         bulletLeft--;
-                        bulletInfoLabel.text = `${bulletLeft}/∞`
+                        bulletInfoLabel.text = `${bulletLeft}/${inf}`
                     }
                 } else if (!reloadTimeout) {
                     reload();
@@ -384,14 +385,15 @@ function reload() {
             i++;
         }
         dot = dotArray[i];
-        bulletInfoLabel.text = `${dot}/∞`
+        bulletInfoLabel.text = `${dot}/${inf}`
     }, 250)
     reloadTimeout = setTimeout(() => {
         clearInterval(bulletReloadAnimInterval);
         bulletLeft = MAX_BULLETS;
-        bulletInfoLabel.text = `${bulletLeft}/∞`
+        bulletInfoLabel.text = `${bulletLeft}/${inf}`
         reloadTimeout = undefined
     }, 3000)
+    console.log(inf);
 }
 
 function makeBar(this: any, x: number, y: number, color: number) {
@@ -840,7 +842,7 @@ function startTimerBackgroundFlash() {
 
 function gunUI(this: any) {
     let gun = this.matter.add.image(this.cameras.main.width - 200, this.cameras.main.height - 75, 'gun').setOrigin(0, 0).setScale(0.1, 0.1).setDepth(104).setScrollFactor(0, 0).setSensor(true);
-    bulletInfoLabel = this.add.text(this.cameras.main.width - 150, this.cameras.main.height - 85 ,`${bulletLeft}/∞` ,{ color: '#FFFFFF', font: '3.5em' }).setOrigin(0, 0).setScrollFactor(0, 0).setDepth(104).setPadding(20);
+    bulletInfoLabel = this.add.text(this.cameras.main.width - 150, this.cameras.main.height - 85 ,`${bulletLeft}/${inf}` ,{ color: '#FFFFFF', font: '3.5em' }).setOrigin(0, 0).setScrollFactor(0, 0).setDepth(104).setPadding(20);
 }
 
 const config = {
@@ -1168,7 +1170,6 @@ function send_pose(player: any) {
     positionBuffer.setY(player.y.toFixed(2))
     positionBuffer.setAngle(isAlive ? player.rotation.toFixed(2) : 0)
     positionBuffer.setTeam(playerTeam);
-    console.log(positionBuffer);
     positionBuffer = positionBuffer.serializeBinary();
 
     ws.send(positionBuffer);
@@ -1291,8 +1292,6 @@ function setWsListeners(ws: any) {
     });
     ws.binaryType = 'arraybuffer'
 
-    event = new Events(ws, username);
-
     ws.onopen = () => {
         // let playerData: any = {}
         // playerData[username] = {
@@ -1316,7 +1315,6 @@ function setWsListeners(ws: any) {
         //     deaths: 2
         // }
         // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'COUNTER_TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
-        event.setMenu();
     }
 
     ws.onmessage = (message: any) => {
@@ -1336,10 +1334,16 @@ function setWsListeners(ws: any) {
 }
 
 window.onload = () => {
-    username = prompt('Enter username!') ?? "null"
+    username = '';
+    event = new Events(username);
+};
+
+export function openWSConnection(uid: string) {
+    username = uid;
     ws = new WebSocket(`${URL}?user=${username}`);
     setWsListeners(ws);
-};
+    return ws;
+}
 
 function resetVariables() {
     shot_id = 0;

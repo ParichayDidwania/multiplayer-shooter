@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SocketService = void 0;
 const ws_1 = require("ws");
 const event_manager_service_1 = require("./event-manager.service");
+const { Position } = require('../../protos/protoFile_pb');
 class SocketService {
     constructor(server) {
         this._server = server;
@@ -24,7 +25,13 @@ class SocketService {
         return (socket_data) => {
             let message;
             try {
-                message = JSON.parse(socket_data.toString());
+                let messageStr = socket_data.toString();
+                if (messageStr[0] != "{") {
+                    message = Position.deserializeBinary(socket_data).toObject();
+                }
+                else {
+                    message = JSON.parse(messageStr);
+                }
                 try {
                     this._eventManager.handleEvents(socket, message, this._wsserver.clients);
                 }
@@ -35,7 +42,9 @@ class SocketService {
                     }));
                 }
             }
-            catch (err) { }
+            catch (err) {
+                console.log(err);
+            }
         };
     }
     onClose(socket) {

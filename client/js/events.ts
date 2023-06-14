@@ -1,16 +1,35 @@
-import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, reconnectGame, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
+import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, openWSConnection, reconnectGame, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
 
 export class Events {
-    socket: WebSocket;
+    socket: any;
     uid: string;
     room_id: string;
     team: string = 'NONE';
-    constructor(socket: WebSocket, uid: string) {
-        this.socket = socket;
+    constructor(uid: string) {
         this.uid = uid;
         this.room_id = '';
 
-        this.setMenu(true);
+        this.setMenu(false);
+    }
+
+    createWsConnection() {
+        let user_id: any = document.getElementById('user_id');
+        user_id = user_id.value;
+        if(user_id == '') {
+            alert('Please enter a username');
+            return;
+        }
+
+        let room_id: any = document.getElementById('room_id');
+        room_id = room_id.value;
+        if(room_id == '') {
+            alert('Please enter a room id');
+            return;
+        }
+
+        this.uid = user_id;
+        console.log(this.uid);
+        this.socket = openWSConnection(user_id);
     }
 
     handleEvents(event: any) {
@@ -88,13 +107,17 @@ export class Events {
 
     // ws
     sendCreateRoom() {
-        let room_id: any = document.getElementById('room_id');
-        this.room_id = room_id.value;
-        this.socket.send(JSON.stringify({
-            eventName: "CREATE",
-            uid: this.uid,
-            room_id: room_id.value
-        }))
+        this.createWsConnection();
+        // this.setMenu(true);
+        this.socket.onopen = () => {
+            let room_id: any = document.getElementById('room_id');
+            this.room_id = room_id.value;
+            this.socket.send(JSON.stringify({
+                eventName: "CREATE",
+                uid: this.uid,
+                room_id: room_id.value
+            }))
+        }
     }
 
     sendJoinTeam(team: string) {
@@ -108,23 +131,31 @@ export class Events {
     }
 
     sendJoinRoom() {
+        this.createWsConnection();
         let room_id: any = document.getElementById('room_id');
         this.room_id = room_id.value;
-        this.socket.send(JSON.stringify({
-            eventName: "JOIN",
-            uid: this.uid,
-            room_id: this.room_id
-        }))
-    }
+        // this.setMenu(true);
+        this.socket.onopen = () => {
+            this.socket.send(JSON.stringify({
+                eventName: "JOIN",
+                uid: this.uid,
+                room_id: this.room_id
+            }))
+        }
+    }   
 
     sendReconnectRoom() {
+        this.createWsConnection();
         let room_id: any = document.getElementById('room_id');
         this.room_id = room_id.value;
-        this.socket.send(JSON.stringify({
-            eventName: "RECONNECT",
-            uid: this.uid,
-            room_id: this.room_id
-        }))
+        // this.setMenu(true);
+        this.socket.onopen = () => {
+            this.socket.send(JSON.stringify({
+                eventName: "RECONNECT",
+                uid: this.uid,
+                room_id: this.room_id
+            }))
+        }
     }
 
     sendStartMatch() {
@@ -156,16 +187,18 @@ export class Events {
         cross.onclick = this.unrenderControls.bind(this);
     }
 
+    // <span id="username"><span style="font-size: 2em;">username: </span><span style="font-size: 2em;color: red">${this.uid}</span></span><br>
+
     setMenu(isLoading = false) {
         let div : any = document.getElementById('menu');
         div.style.visibility = 'visible';
         div.innerHTML = `<img id="logo" src="./assets/sprites/logo.png">
         <div id="subMenu1">
-            <span id="username"><span style="font-size: 2em;">username: </span><span style="font-size: 2em;color: red">${this.uid}</span></span><br>
-            ${!isLoading ? "<input id='room_id' type ='text' value='', placeholder='Room Id'><br><button id='createBtn'>Create</button> <br><button id='joinBtn'>Join</button> <br><button id='reconnectBtn'>Reconnect</button> <br> <br><button id='controlsBtn'>Controls</button> <br>" :  "<div class='loader'></div>" }
+            
+            ${!isLoading ? "<input id='user_id' type ='text' value='', placeholder='Username'><br><input id='room_id' type ='text' value='', placeholder='Room Id'><br><button id='createBtn'>Create</button> <br><button id='joinBtn'>Join</button> <br><button id='reconnectBtn'>Reconnect</button> <br> <br><button id='controlsBtn'>Controls</button> <br>" :  "<div class='loader'></div>" }
         </div>`
 
-        div.style.backgroundImage = "url(/assets/sprites/background.jpg)";
+        div.style.backgroundImage = "url(./assets/sprites/background.jpg)";
         div.style.width = '100vw';
         div.style.height = '100vh'
         div.style.backgroundSize = '100vw 100vh'
@@ -239,7 +272,7 @@ export class Events {
                 <h1 style="text-align: center; color: white;"><span style="color: #FFFFFF; font-weight: 100">Room ID: </span><span style="color: #FFFFFF; font-family:Monospace;">${room.room_id}</span></h1>
             </div>`
 
-            div.style.backgroundImage = "url(/assets/sprites/background.jpg)";
+            div.style.backgroundImage = "url(./assets/sprites/background.jpg)";
             div.style.width = '100vw';
             div.style.height = '100vh'
             div.style.backgroundSize = '100vw 100vh'

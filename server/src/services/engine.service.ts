@@ -4,9 +4,11 @@ import { IWebSocket } from "./socket.service";
 export class Engine {
     private rooms: Rooms = {};
     socketRooms: Record<string, Array<IWebSocket>>
+    roomDeletionTimeouts: Record<string, any>;
 
     constructor(socketRooms: Record<string, Array<IWebSocket>>) {
         this.socketRooms = socketRooms;
+        this.roomDeletionTimeouts = {};
     }
 
     createRoomData(room_id: string) {
@@ -172,9 +174,9 @@ export class Engine {
         let room = this.createRoomData(room_id);
         this.rooms[room_id] = room;
 
-        setTimeout(() => {
+        this.roomDeletionTimeouts[room_id] = setTimeout(() => {
             this.deleteRoom(room);
-        }, 15 * 60 * 1000)
+        }, 15 * 60 * 1000);
 
         this.addUserToRoom(room_id, uid, true);
     }
@@ -772,8 +774,10 @@ export class Engine {
 
     deleteRoom(room: Room) {
         clearTimeout(room.timer);
+        clearTimeout(this.roomDeletionTimeouts[room.room_id]);
         room.state = State.MATCH_ENDED;
         delete this.rooms[room.room_id];
         delete this.socketRooms[room.room_id];
+        delete this.roomDeletionTimeouts[room.room_id];
     }
 }

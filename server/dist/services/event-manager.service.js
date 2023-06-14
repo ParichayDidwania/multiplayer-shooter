@@ -94,7 +94,7 @@ class EventManager {
         positionProtobuf.setTeam(team);
         let serializedPos = positionProtobuf.serializeBinary();
         for (let socket of socketRoom) {
-            socket.send(serializedPos, { binary: true });
+            socket.send(serializedPos);
         }
     }
     broadcastShots(room_id, uid, x, y, angle, team) {

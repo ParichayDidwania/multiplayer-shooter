@@ -43,7 +43,9 @@ export class SocketService {
 
     onClose(socket: IWebSocket) {
         return () => {
-            this._eventManager.handleDisconnection(socket);
+            try {
+                this._eventManager.handleDisconnection(socket);
+            } catch (e) {}
         }
     }
 
