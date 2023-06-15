@@ -15,7 +15,7 @@ Welcome to Shadow Ops, an adrenaline-pumping 5v5 top-down tactical multiplayer s
 ## How to Play
 
 ### Online Play:
-1. Visit [185.183.182.175:8085](http://185.183.182.175:8085) in your web browser.
+1. Download `ShadowOps-win32-x64.zip` and extract it. Open ShadowOps.exe inside the extracted folder.
 2. Create a room or join an existing one.
 3. Invite your friends to join your lobby using the provided room id.
 4. Once all players have joined the room, start the match and engage in intense multiplayer battles.
@@ -25,7 +25,8 @@ Welcome to Shadow Ops, an adrenaline-pumping 5v5 top-down tactical multiplayer s
 2. Install the necessary dependencies for both the client and server using `npm install` in the respective directories.
 3. Start the backend server by using `npm run dev` command in server directory.
 4. Change the server url in `client.ts` file by editing the URL variable at the top of the file to `ws://localhost:7000`.
-5. Start the client server (to server static files) using `npm start` in client directory.
+5. Build `client.js` file using `npm run build` in the client directory.
+6. Start the client server (to server static files) using `npm run start` in client directory.
 
 ## License
 
