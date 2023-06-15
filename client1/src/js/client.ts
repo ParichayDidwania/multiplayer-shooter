@@ -111,11 +111,11 @@ class GameScene extends Phaser.Scene {
         this.load.image('projectile', bulletSprite);
         this.load.image('projectile-ct', 'assets/sprites/bullet-ct.png')
         this.load.image('projectile-t', 'assets/sprites/bullet-t.png')
-        this.load.json('shapes', 'assets/sprites/playerShape.json');
+        this.load.json('shapes', 'assets/sprites/playerShape.txt');
         this.load.image('tile', 'assets/sprites/wall.png')
-        this.load.tilemapTiledJSON('map', 'assets/sprites/map2.json');
+        this.load.tilemapTiledJSON('map', 'assets/sprites/map2.txt');
         this.load.image('vision', 'assets/sprites/mask.png');
-        this.load.tilemapTiledJSON('floormap', 'assets/sprites/floor.json');
+        this.load.tilemapTiledJSON('floormap', 'assets/sprites/floor.txt');
         this.load.image('floor', 'assets/sprites/floor.png');
         this.load.image('health', 'assets/sprites/health.png');
         this.load.image('tomb', 'assets/sprites/tomb.png')
