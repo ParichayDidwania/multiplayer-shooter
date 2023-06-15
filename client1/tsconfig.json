@@ -110,6 +110,6 @@
   },
   "include": [
     "./**/*"
-, "../client1/js"  ],
-  "exclude": ["src/dist/**/*","src/protos/**/*", "src/index.js", "./webpack.config.js"]
+  ],
+  "exclude": ["src/dist/**/*","src/protos/**/*", "src/index.js", "./webpack.config.js", "./forge.config.js"]
 }

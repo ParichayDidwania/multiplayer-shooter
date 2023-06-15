@@ -1,6 +1,6 @@
 import Phaser, { Game } from "phaser";
 import { Events } from "./events";
-import * as proto from '../../client/protos/protoFile_pb';
+import * as proto from '../protos/protoFile_pb';
 
 const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
