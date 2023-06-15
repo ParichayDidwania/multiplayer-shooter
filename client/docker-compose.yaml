@@ -1,8 +1,0 @@
-version: '3.8'
-services:
-  client:
-    container_name: client
-    image: parichaydidwania/shadow_ops_client:latest
-    ports:
-      - "8085:8085"
-    network_mode: "host"
