@@ -458,6 +458,9 @@ export class Engine {
 
         room.current_round_bomb_plant_timestamp = 0;
         room.current_round_start_timestamp = 0;
+        if(room.timer) {
+            clearTimeout(room.timer);
+        }
     }
 
     endRound(room_id: string, winner: Team) {
