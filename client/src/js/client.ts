@@ -7,12 +7,12 @@ const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
 
 const MAX_BULLETS = 5;
-// const URL = 'ws://185.183.182.175:7000';
-// const UDP_URL = ''
+const URL = 'ws://185.183.182.175:7000';
+const UDP_URL = 'http://185.183.182.175'
 
 //UNCOMMENT TO RUN LOCALLY
-const URL = 'ws://localhost:7000';  
-const UDP_URL = 'http://localhost'
+// const URL = 'ws://localhost:7000';  
+// const UDP_URL = 'http://localhost'
 
 let shot_id = 0;
 let map_shot_id = 0;

@@ -6,6 +6,7 @@ class Engine {
     constructor(socketRooms) {
         this.rooms = {};
         this.socketRooms = socketRooms;
+        this.roomDeletionTimeouts = {};
     }
     createRoomData(room_id) {
         let room = {
@@ -144,7 +145,7 @@ class Engine {
         }
         let room = this.createRoomData(room_id);
         this.rooms[room_id] = room;
-        setTimeout(() => {
+        this.roomDeletionTimeouts[room_id] = setTimeout(() => {
             this.deleteRoom(room);
         }, 15 * 60 * 1000);
         this.addUserToRoom(room_id, uid, true);
@@ -310,6 +311,7 @@ class Engine {
         let enemy = room.users[enemyUid];
         let dist = this.getDistanceBetweenPoints(bulletCoords.x, bulletCoords.y, enemy.pos_x, enemy.pos_y);
         if (dist <= engine_dto_1.GAMECONSTANTS.HIT_REG_RADIUS) {
+            let bomb_drop_info = undefined;
             enemy.health -= engine_dto_1.GAMECONSTANTS.SHOT_DAMAGE;
             if (enemy.health <= 0) {
                 room.users[uid].kills++;
@@ -322,10 +324,12 @@ class Engine {
                     room.bomb.isPicked = {
                         value: false
                     };
-                    this.broadcastBombDropped(room_id, enemyUid);
+                    bomb_drop_info = {
+                        enemyUid: enemyUid
+                    };
                 }
             }
-            return { uid: enemyUid, team: enemy.team, health: enemy.health, isAlive: enemy.isAlive };
+            return { uid: enemyUid, team: enemy.team, health: enemy.health, isAlive: enemy.isAlive, bomb_drop_info };
         }
     }
     getDistanceBetweenPoints(x1, y1, x2, y2) {
@@ -383,6 +387,9 @@ class Engine {
         };
         room.current_round_bomb_plant_timestamp = 0;
         room.current_round_start_timestamp = 0;
+        if (room.timer) {
+            clearTimeout(room.timer);
+        }
     }
     endRound(room_id, winner) {
         if (!this.checkIfRoomExists(room_id)) {
@@ -413,17 +420,6 @@ class Engine {
             value: true,
             by: uid
         };
-        this.broadcastBombPicked(room_id);
-    }
-    broadcastBombPicked(room_id) {
-        let room = this.rooms[room_id];
-        let picked = JSON.stringify({
-            eventName: 'BOMB_PICKED',
-            uid: room.bomb.isPicked.by
-        });
-        for (let socket of this.socketRooms[room_id]) {
-            socket.send(picked);
-        }
     }
     dropBomb(room_id, uid) {
         if (!this.checkIfRoomExists(room_id)) {
@@ -447,7 +443,7 @@ class Engine {
         };
         room.bomb.x = room.users[uid].pos_x;
         room.bomb.y = room.users[uid].pos_y;
-        this.broadcastBombDropped(room_id, uid);
+        return uid;
     }
     plantBomb(room_id, uid) {
         if (!this.checkIfRoomExists(room_id)) {
@@ -493,18 +489,6 @@ class Engine {
         room.bomb.isDiffused = true;
         clearTimeout(room.timer);
         this.broadcastBombDiffused(room_id);
-    }
-    broadcastBombDropped(room_id, uid) {
-        let room = this.rooms[room_id];
-        let dropped = JSON.stringify({
-            eventName: 'BOMB_DROPPED',
-            uid: uid,
-            x: room.bomb.x,
-            y: room.bomb.y
-        });
-        for (let socket of this.socketRooms[room_id]) {
-            socket.send(dropped);
-        }
     }
     reconnect(room_id, uid) {
         if (!this.checkIfRoomExists(room_id)) {
@@ -651,9 +635,14 @@ class Engine {
     }
     deleteRoom(room) {
         clearTimeout(room.timer);
+        clearTimeout(this.roomDeletionTimeouts[room.room_id]);
         room.state = engine_dto_1.State.MATCH_ENDED;
         delete this.rooms[room.room_id];
         delete this.socketRooms[room.room_id];
+        delete this.roomDeletionTimeouts[room.room_id];
+        if (this.udpService) {
+            this.udpService.deleteRoom(room.room_id);
+        }
     }
 }
 exports.Engine = Engine;

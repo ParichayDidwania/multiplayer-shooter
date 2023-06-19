@@ -19,7 +19,7 @@ class SocketService {
         this._wsserver = new ws_1.WebSocket.Server({
             server: this._server
         });
-        this._eventManager = new event_manager_service_1.EventManager();
+        this._eventManager = event_manager_service_1.eventManager;
     }
     onMessage(socket) {
         return (socket_data) => {
@@ -33,7 +33,7 @@ class SocketService {
                     message = JSON.parse(messageStr);
                 }
                 try {
-                    this._eventManager.handleEvents(socket, message, this._wsserver.clients);
+                    this._eventManager.handleEvents(socket, message);
                 }
                 catch (e) {
                     socket.send(JSON.stringify({
@@ -49,7 +49,10 @@ class SocketService {
     }
     onClose(socket) {
         return () => {
-            this._eventManager.handleDisconnection(socket);
+            try {
+                this._eventManager.handleDisconnection(socket);
+            }
+            catch (e) { }
         };
     }
     setListeners() {
