@@ -19,9 +19,11 @@
     "forge": "./forge.config.js"
   },
   "dependencies": {
+    "@geckos.io/client": "^2.3.1",
     "electron-compile": "^6.4.4",
     "electron-squirrel-startup": "^1.0.0",
     "express": "^4.18.2",
+    "fix-esm": "^1.0.1",
     "google-protobuf": "^3.21.2"
   },
   "devDependencies": {

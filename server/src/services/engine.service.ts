@@ -1,10 +1,12 @@
 import { ConnectionStatus, GAMECONSTANTS, Half, Room, Rooms, SPAWNS, Shot, SpawnPoint, State, Team, User, bombCoords } from "../dtos/engine.dto";
 import { IWebSocket } from "./socket.service";
+import { UdpService } from "./udp.service";
 
 export class Engine {
     private rooms: Rooms = {};
     socketRooms: Record<string, Array<IWebSocket>>
     roomDeletionTimeouts: Record<string, any>;
+    udpService: UdpService | undefined;
 
     constructor(socketRooms: Record<string, Array<IWebSocket>>) {
         this.socketRooms = socketRooms;
@@ -378,6 +380,7 @@ export class Engine {
         let dist = this.getDistanceBetweenPoints(bulletCoords.x, bulletCoords.y, enemy.pos_x, enemy.pos_y);
 
         if(dist <= GAMECONSTANTS.HIT_REG_RADIUS) {
+            let bomb_drop_info = undefined;
             enemy.health -= GAMECONSTANTS.SHOT_DAMAGE;
             if(enemy.health <= 0) {
                 room.users[uid].kills ++;
@@ -390,10 +393,13 @@ export class Engine {
                     room.bomb.isPicked = {
                         value: false
                     }
-                    this.broadcastBombDropped(room_id, enemyUid);
+
+                    bomb_drop_info = {
+                        enemyUid: enemyUid
+                    }
                 }
             }
-            return { uid: enemyUid, team: enemy.team, health: enemy.health, isAlive: enemy.isAlive };
+            return { uid: enemyUid, team: enemy.team, health: enemy.health, isAlive: enemy.isAlive, bomb_drop_info };
         }
     }
 
@@ -499,19 +505,6 @@ export class Engine {
             value: true,
             by: uid
         }
-
-        this.broadcastBombPicked(room_id);
-    }
-
-    broadcastBombPicked(room_id: string) {
-        let room = this.rooms[room_id];
-        let picked = JSON.stringify({
-            eventName: 'BOMB_PICKED',
-            uid: room.bomb.isPicked.by
-        })
-        for(let socket of this.socketRooms[room_id]) {
-            socket.send(picked);
-        }
     }
 
     dropBomb(room_id: string, uid: string) {
@@ -543,7 +536,7 @@ export class Engine {
         room.bomb.x = room.users[uid].pos_x;
         room.bomb.y = room.users[uid].pos_y;
         
-        this.broadcastBombDropped(room_id, uid);
+        return uid;
     }
 
     plantBomb(room_id: string, uid: string) {
@@ -604,19 +597,6 @@ export class Engine {
         room.bomb.isDiffused = true;
         clearTimeout(room.timer);
         this.broadcastBombDiffused(room_id)
-    }
-
-    broadcastBombDropped(room_id: string, uid: string) {
-        let room = this.rooms[room_id];
-        let dropped = JSON.stringify({
-            eventName: 'BOMB_DROPPED',
-            uid: uid,
-            x: room.bomb.x,
-            y: room.bomb.y
-        })
-        for(let socket of this.socketRooms[room_id]) {
-            socket.send(dropped);
-        }
     }
 
     reconnect(room_id: string, uid: string) {
@@ -782,5 +762,8 @@ export class Engine {
         delete this.rooms[room.room_id];
         delete this.socketRooms[room.room_id];
         delete this.roomDeletionTimeouts[room.room_id];
+        if(this.udpService) {
+            this.udpService.deleteRoom(room.room_id);
+        }
     }
 }

@@ -1,7 +1,8 @@
-import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, openWSConnection, reconnectGame, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
+import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, openUdpConnection, openWSConnection, reconnectGame, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
 
 export class Events {
     socket: any;
+    udp_socket: any;
     uid: string;
     room_id: string;
     team: string = 'NONE';
@@ -10,6 +11,11 @@ export class Events {
         this.room_id = '';
 
         this.setMenu(false);
+    }
+
+    resetConn() {
+        this.socket = undefined;
+        this.udp_socket = undefined;
     }
 
     createWsConnection() {
@@ -28,8 +34,33 @@ export class Events {
         }
 
         this.uid = user_id;
-        console.log(this.uid);
         this.socket = openWSConnection(user_id);
+    }
+
+    handleUdpEvents() {
+        this.udp_socket.onConnect((error: any) => {
+            this.udp_socket.emit('JOIN', { uid: this.uid, room_id: this.room_id })
+
+            this.udp_socket.on('POSITION', (data: any) => {
+                if(data.uid != this.uid && isInit()) {
+                    renderPlayer(data.uid, data.x, data.y, data.angle, data.team);
+                }
+            });
+
+            this.udp_socket.on('SHOOT', (data: any) => {
+                if(data.uid != this.uid && isInit()) {
+                    renderBullets(data.x, data.y, data.angle, data.uid, data.team);
+                }
+            });
+
+            this.udp_socket.on('BOMB_PICKED', (data: any) => {                
+                bombPicked(data.uid);
+            });
+
+            this.udp_socket.on('BOMB_DROPPED', (data: any) => {                
+                bombDropped(data.uid, data.x, data.y);
+            });
+        })
     }
 
     handleEvents(event: any) {
@@ -40,23 +71,15 @@ export class Events {
 
             case 'ROOM_DATA':
                 this.unsetMenu();
+                if(!this.udp_socket) {
+                    this.udp_socket = openUdpConnection();
+                    this.handleUdpEvents();
+                }
                 if(event.room.users[this.uid].team != 'NONE') {
                     this.team = event.room.users[this.uid].team;
                     this.setTeamSelection(event.room, event.time_left, false);
                 } else {
                     this.setTeamSelection(event.room, event.time_left, true);
-                }
-                break;
-
-            case 'POSITION':
-                if(event.uid != this.uid && isInit()) {
-                    renderPlayer(event.uid, event.x, event.y, event.angle, event.team);
-                }
-                break;
-
-            case 'SHOOT':
-                if(event.uid != this.uid && isInit()) {
-                    renderBullets(event.x, event.y, event.angle, event.uid, event.team);
                 }
                 break;
             
@@ -74,14 +97,6 @@ export class Events {
                 renderMatchWinner(event.winner);
                 break;
 
-            case 'BOMB_PICKED':
-                bombPicked(event.uid);
-                break;
-
-            case 'BOMB_DROPPED':
-                bombDropped(event.uid, event.x, event.y);
-                break;
-
             case 'BOMB_PLANTED':
                 bombPlanted(event.uid, event.x, event.y, event.time_left);
                 break;
@@ -92,6 +107,10 @@ export class Events {
 
             case 'RECONNECT':
                 this.unsetMenu();
+                if(!this.udp_socket) {
+                    this.udp_socket = openUdpConnection();
+                    this.handleUdpEvents();
+                }
                 let user = event.room.users[this.uid]
                 let spawn = {
                     pos_x: user.pos_x,

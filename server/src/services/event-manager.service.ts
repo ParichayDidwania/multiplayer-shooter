@@ -1,18 +1,50 @@
 import { IWebSocket } from "./socket.service";
 import { Engine } from "./engine.service";
 import { State, Team } from "../dtos/engine.dto";
+import { UdpService } from "./udp.service";
 const { Position } = require('../../protos/protoFile_pb'); 
 
 export class EventManager {
     engine: Engine;
     socketRooms: Record<string, Array<IWebSocket>>
+    udpRooms: Record<string, Record<string, any>>
 
     constructor() {
         this.socketRooms = {};
         this.engine = new Engine(this.socketRooms);
+        this.udpRooms = {};
     }
 
-    handleEvents(socket: IWebSocket, message: any, socketList: Set<IWebSocket>) {
+    handleUdpEvents(data: any, room_id: string) {
+        let channels = this.udpRooms[room_id];
+        switch(data.eventName) {
+            case "POSITION":{
+                let team = this.engine.updatePosition(room_id, data.uid, data.x, data.y, data.angle);
+                this.broadcastPlayerPosition(channels, data.uid, data.x, data.y, data.angle, team);
+                break;
+            }
+
+            case  "SHOOT":{
+                let team = this.engine.updateShots(room_id, data.uid, data.id, data.x, data.y, data.angle);
+                this.broadcastShots(channels, data.uid, data.x, data.y, data.angle, team);
+                break;
+            }
+
+            case "BOMB_PICKED":
+                this.engine.pickBomb(room_id, data.uid);
+                this.broadcastBombPicked(channels, room_id);
+                break;
+
+            case "BOMB_DROPPED":
+                let uid = this.engine.dropBomb(room_id, data.uid);
+                if(uid) {
+                    this.broadcastBombDropped(channels, room_id, uid);
+                }
+                break;
+        }
+    }
+
+    handleEvents(socket: IWebSocket, message: any) {
         switch(message.eventName) {
             case "CREATE":
                 this.engine.createRoom(message.room_id, message.uid);
@@ -37,35 +69,19 @@ export class EventManager {
                 this.engine.startMatch(socket.room_id, socket.user_id);
                 this.engine.broadcastRoomData(socket.room_id);
                 break;
-
-            case "POSITION":{
-                let team = this.engine.updatePosition(socket.room_id, message.uid, message.x, message.y, message.angle);
-                this.broadcastPlayerPosition(socket.room_id, message.uid, message.x, message.y, message.angle, team)
-                break;
-            }
-
-            case  "SHOOT":{
-                let team = this.engine.updateShots(socket.room_id, socket.user_id, message.id, message.x, message.y, message.angle);
-                this.broadcastShots(socket.room_id, socket.user_id, message.x, message.y, message.angle, team);
-                break;
-            }
                 
             case "HIT":
                 let healthObj = this.engine.validateHit(socket.room_id, socket.user_id, message.enemyUid, message.shot_id);
                 if(healthObj) {
                     this.broadcastHealth(socket.room_id, healthObj.uid, healthObj.team, healthObj.health, healthObj.isAlive, socket.user_id);
+                    if(healthObj.bomb_drop_info) {
+                        let channels = this.udpRooms[socket.room_id];
+                        this.broadcastBombDropped(channels, socket.room_id, healthObj.bomb_drop_info.enemyUid);
+                    }
                     if(!healthObj.isAlive) {
                         this.engine.checkRoundStatus(socket.room_id);
                     }
                 }
-                break;
-
-            case "BOMB_PICKED":
-                this.engine.pickBomb(socket.room_id, socket.user_id);
-                break;
-
-            case "BOMB_DROPPED":
-                this.engine.dropBomb(socket.room_id, socket.user_id);
                 break;
             
             case "BOMB_PLANTED":
@@ -101,33 +117,60 @@ export class EventManager {
         }
     }
 
-    broadcastPlayerPosition(room_id: string, uid: string, x: number, y: number, angle: number, team: Team) {
-        let socketRoom = this.socketRooms[room_id];
-        let positionProtobuf = new Position();
-        positionProtobuf.setEventName("POSITION");
-        positionProtobuf.setUid(uid)
-        positionProtobuf.setX(x)
-        positionProtobuf.setY(y)
-        positionProtobuf.setAngle(angle)
-        positionProtobuf.setTeam(team);
-        let serializedPos = positionProtobuf.serializeBinary();
-        for(let socket of socketRoom) {
-            socket.send(serializedPos);
+    broadcastPlayerPosition(channels: Record<string, any>, uid: string, x: number, y: number, angle: number, team: Team) {
+        let posObj = {
+            eventName: 'POSITION',
+            uid: uid,
+            x: x,
+            y: y,
+            angle: angle,
+            team: team
+        }
+        for(let user in channels) {
+            let channel = channels[user];
+            channel.emit('POSITION', posObj);
         }
     }
 
-    broadcastShots(room_id: string, uid: string, x: number, y: number, angle: number, team: Team) {
-        let socketRoom = this.socketRooms[room_id];
-        let shot = JSON.stringify({
+    broadcastShots(channels: Record<string, any>, uid: string, x: number, y: number, angle: number, team: Team) {
+        let shot = {
             eventName: "SHOOT",
             uid: uid,
             x: x,
             y: y,
             angle: angle,
             team: team
-        })
-        for(let socket of socketRoom) {
-            socket.send(shot);
+        }
+
+        for(let user in channels) {
+            let channel = channels[user];
+            channel.emit('SHOOT', shot);
+        }
+    }
+
+    broadcastBombPicked(channels: Record<string, any>, room_id: string) {
+        let room = this.engine.getRoomData(room_id);
+        let picked = {
+            eventName: 'BOMB_PICKED',
+            uid: room.bomb.isPicked.by
+        }
+        for(let user in channels) {
+            let channel = channels[user];
+            channel.emit('BOMB_PICKED', picked);
+        }
+    }
+
+    broadcastBombDropped(channels: Record<string, any>, room_id: string, uid: string) {
+        let room = this.engine.getRoomData(room_id);
+        let dropped = {
+            eventName: 'BOMB_DROPPED',
+            uid: uid,
+            x: room.bomb.x,
+            y: room.bomb.y
+        }
+        for(let user in channels) {
+            let channel = channels[user];
+            channel.emit('BOMB_DROPPED', dropped);
         }
     }
 
@@ -180,4 +223,14 @@ export class EventManager {
             }
         }
     }
+
+    setUdpService(udpService: UdpService) {
+        this.engine.udpService = udpService;
+    }
+
+    setUdpRoomData(udpRooms: Record<string, Record<string, any>>) {
+        this.udpRooms = udpRooms;
+    }
 }
+
+export const eventManager = new EventManager();

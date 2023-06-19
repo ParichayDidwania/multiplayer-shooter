@@ -1,6 +1,7 @@
 import { Server } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { EventManager } from './event-manager.service';
+import { eventManager, EventManager } from './event-manager.service';
+import { UdpService } from './udp.service';
 const { Position } = require('../../protos/protoFile_pb'); 
 
 
@@ -14,7 +15,7 @@ export class SocketService {
         this._wsserver = new WebSocket.Server({
             server: this._server
         });
-        this._eventManager = new EventManager();
+        this._eventManager = eventManager;
     }
 
     onMessage(socket: IWebSocket) {
@@ -28,7 +29,7 @@ export class SocketService {
                     message = JSON.parse(messageStr);
                 }
                 try {
-                    this._eventManager.handleEvents(socket, message, this._wsserver.clients as Set<IWebSocket>);
+                    this._eventManager.handleEvents(socket, message);
                 } catch (e: any) {
                     socket.send(JSON.stringify({
                         eventName: "ERROR",

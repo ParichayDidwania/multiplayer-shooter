@@ -1,15 +1,18 @@
 import Phaser, { Game } from "phaser";
 import { Events } from "./events";
 import * as proto from '../protos/protoFile_pb';
+import geckos, { ClientChannel } from '@geckos.io/client'
 
 const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
 
 const MAX_BULLETS = 5;
-const URL = 'ws://185.183.182.175:7000';
+// const URL = 'ws://185.183.182.175:7000';
+// const UDP_URL = ''
 
 //UNCOMMENT TO RUN LOCALLY
-// const URL = 'ws://localhost:7000';  
+const URL = 'ws://localhost:7000';  
+const UDP_URL = 'http://localhost'
 
 let shot_id = 0;
 let map_shot_id = 0;
@@ -23,6 +26,7 @@ let wasd : any;
 let enemies : any = {};
 let allies : any = {};
 let ws: any;
+let channel: any;
 let username: string;
 let isStarted = false;
 let handle_angle = Math.PI/2;
@@ -969,8 +973,8 @@ export function renderMatchWinner(winner: string) {
         event.setMenu();
         isDestroyed = true;
         ws.close();
-        ws = new WebSocket(`${URL}?user=${username}`);
-        setWsListeners(ws);
+        channel.close();
+        event.resetConn();
     }, 5000)
 }
 
@@ -1009,15 +1013,17 @@ function sendBombDiffused() {
 }
 
 function sendBombPicked() {
-    ws.send(JSON.stringify({
+    channel.emit('BOMB_PICKED', {
         eventName: "BOMB_PICKED",
-    }))
+        uid: username
+    })
 }
 
 function sendBombDrop() {
-    ws.send(JSON.stringify({
+    channel.emit('BOMB_DROPPED', {
         eventName: "BOMB_DROPPED",
-    }))
+        uid: username
+    })
 }
 
 function sendHit(enemyUid: string, shot_id: number) {
@@ -1030,14 +1036,15 @@ function sendHit(enemyUid: string, shot_id: number) {
 }
 
 function sendShoot(pointer_x: number, pointer_y: number, angle: number, shot_id: number, uid: string) {
-    ws.send(JSON.stringify({
+    let shot = {
         eventName: "SHOOT",
         id: shot_id,
         uid: uid,
         x: pointer_x,
         y: pointer_y,
         angle: angle
-    }))
+    }
+    channel.emit('SHOOT', shot);
 }
 
 export function bombPlanted(uid: string, x: number, y: number, time_left: number) {
@@ -1163,16 +1170,16 @@ function killPlayer(sprite: any, uid: string) {
 let game: Phaser.Game;
 
 function send_pose(player: any) {
-    let positionBuffer = new (proto as any).Position();
-    positionBuffer.setEventName("POSITION");
-    positionBuffer.setUid(username)
-    positionBuffer.setX(player.x.toFixed(2))
-    positionBuffer.setY(player.y.toFixed(2))
-    positionBuffer.setAngle(isAlive ? player.rotation.toFixed(2) : 0)
-    positionBuffer.setTeam(playerTeam);
-    positionBuffer = positionBuffer.serializeBinary();
+    let posObj = {
+        eventName: 'POSITION',
+        uid: username,
+        x: player.x.toFixed(2),
+        y: player.y.toFixed(2),
+        angle: isAlive ? player.rotation.toFixed(2) : 0,
+        team: playerTeam
+    }
 
-    ws.send(positionBuffer);
+    channel.emit('POSITION', posObj);
 }
 
 function createPlayer(uid: string, category: Category, x: number = 200, y: number = 200, angle: number = Math.PI, health: number, team: string, kills: number, deaths: number) {
@@ -1343,6 +1350,11 @@ export function openWSConnection(uid: string) {
     ws = new WebSocket(`${URL}?user=${username}`);
     setWsListeners(ws);
     return ws;
+}
+
+export function openUdpConnection() {
+    channel = geckos({ port: 7001, url: UDP_URL });
+    return channel;
 }
 
 function resetVariables() {
