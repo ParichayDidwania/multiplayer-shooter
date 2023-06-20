@@ -41,6 +41,10 @@ export class EventManager {
                     this.broadcastBombDropped(channels, room_id, uid);
                 }
                 break;
+
+            case "START_BOMB_DIFFUSE":
+                this.broadcastStartBombDiffuse(channels, room_id, data.uid);
+                break;
         }
     }
 
@@ -171,6 +175,17 @@ export class EventManager {
         for(let user in channels) {
             let channel = channels[user];
             channel.emit('BOMB_DROPPED', dropped);
+        }
+    }
+
+    broadcastStartBombDiffuse(channels: Record<string, any>, room_id: string, uid: string) {
+        let startDiffuse = {
+            eventName: 'START_BOMB_DIFFUSE',
+            uid: uid
+        }
+        for(let user in channels) {
+            let channel = channels[user];
+            channel.emit('START_BOMB_DIFFUSE', startDiffuse);
         }
     }
 

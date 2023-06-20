@@ -7,12 +7,12 @@ const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
 
 const MAX_BULLETS = 5;
-const URL = 'ws://185.183.182.175:7000';
-const UDP_URL = 'http://185.183.182.175'
+// const URL = 'ws://185.183.182.175:7000';
+// const UDP_URL = 'http://185.183.182.175'
 
 //UNCOMMENT TO RUN LOCALLY
-// const URL = 'ws://localhost:7000';  
-// const UDP_URL = 'http://localhost'
+const URL = 'ws://localhost:7000';  
+const UDP_URL = 'http://localhost'
 
 let shot_id = 0;
 let map_shot_id = 0;
@@ -96,6 +96,10 @@ let scoreBoardBtn: any;
 let scoreBoardElements: any = [];
 let inf = '\u{221E}';
 
+let isRoundEnded = false;
+const soundDist = 700;
+const maxBombVol = 0.7
+let bombTick: any = undefined;
 class GameScene extends Phaser.Scene {
     constructor() {
         super({
@@ -129,6 +133,12 @@ class GameScene extends Phaser.Scene {
         this.load.image('siteA', 'assets/sprites/siteA.png')
         this.load.image('siteB', 'assets/sprites/siteB.png')
         this.load.image('arrow', 'assets/sprites/arrow.png')
+
+        this.load.audio('shot', 'assets/sounds/shot.mp3');
+        this.load.audio('footsteps', 'assets/sounds/footsteps.mp3');
+        this.load.audio('bombTick', 'assets/sounds/bombTick.mp3');
+        this.load.audio('explosion', 'assets/sounds/explosion.mp3');
+        this.load.audio('defuse', 'assets/sounds/defuse.mp3');
     }
       
     create(): void {
@@ -293,12 +303,24 @@ class GameScene extends Phaser.Scene {
                 
                 let angle = Phaser.Math.Angle.Between(player.x, player.y, this.input.mousePointer.x + this.cameras.main.scrollX,  this.input.mousePointer.y + this.cameras.main.scrollY);
                 player.setRotation(angle);
-            } else {
+            } else if (xMovement != 0 || yMovement != 0) {
                 player.x += (xMovement * speed * delta);
                 player.y += (yMovement * speed * delta);
                 let angle = Phaser.Math.Angle.Between(player.x, player.y,  this.input.mousePointer.x + this.cameras.main.scrollX,  this.input.mousePointer.y + this.cameras.main.scrollY);
                 player.setRotation(angle);
+            } else {
+                if(player.footsteps.isPlaying) {
+                    player.footsteps.stop();
+                }
             }
+
+            if(xMovement != 0 || yMovement != 0) {
+                if(!player.footsteps.isPlaying && !isRoundEnded && !isPlanting && !isDiffusing) {
+                    player.footsteps.setVolume(0.1);
+                    player.footsteps.play();
+                }
+            }
+
             player.last_shot = player.last_shot + delta;
     
             if(player.label) {
@@ -358,7 +380,13 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        if(scoreBoardBtn.isDownPressed()) {
+        if(isBombPlanted && bombTick && bomb) {
+            let dist = getDistanceFromPlayer(bomb);
+            let vol = dist > soundDist ? 0 : ((soundDist-dist)/soundDist) * maxBombVol;
+            bombTick.setVolume(vol);
+        }
+
+        if(scoreBoardBtn && scoreBoardBtn.isDownPressed()) {
             makeScoreBoardVisible(true);
         } else {
             makeScoreBoardVisible(false);
@@ -370,6 +398,66 @@ class GameScene extends Phaser.Scene {
         }        
     }
 };
+
+function playOtherPlayerFootSteps(otherPlayer: any) {
+    if(!isRoundEnded) {
+        let max_vol = 0.5;
+        let dist = getDistanceFromPlayer(otherPlayer);
+        let vol = dist > soundDist ? 0 : ((soundDist-dist)/soundDist) * max_vol;
+        if(vol > 0) {
+            otherPlayer.footsteps.setVolume(vol);
+            if(!otherPlayer.footsteps.isPlaying) {
+                otherPlayer.footsteps.play()
+            }
+        }
+    }
+}
+
+function stopOtherPlayerFootSteps(otherPlayer: any) {
+    if(otherPlayer.footsteps.isPlaying) {
+        otherPlayer.footsteps.stop();
+    }
+}
+
+function getDistanceFromPlayer(source_player: any) {
+    let x,y;
+    try {
+        x = source_player.x;
+        y = source_player.y;
+    } catch (e) {
+        return 0;
+    }
+    let dist = 0;
+    if(!currentSpectatePlayerName) {
+        dist = Math.sqrt(((x - player.x)*(x - player.x)) + ((y - player.y)*(y - player.y)));
+    } else {
+        let ally = allies[currentSpectatePlayerName];
+        dist = Math.sqrt(((x - ally.x)*(x - ally.x)) + ((y - ally.y)*(y - ally.y)));
+    }
+
+    return dist;
+}
+
+function getSoundProximityConfig(uid: string) {
+    let conf = {
+        volume: 1
+    };
+
+    if(uid != username) {
+        let source_player;
+        if(enemies[uid]) {
+            source_player = enemies[uid];
+        } else if (allies[uid]) {
+            source_player = allies[uid];
+        }
+
+        if(source_player) {
+            let dist = getDistanceFromPlayer(source_player);
+            conf.volume = dist > soundDist ? 0 : ((soundDist-dist)/soundDist);
+        }
+    }
+    return conf;
+}
 
 function setPosTimeout(player: any) {
     timeout = setTimeout(() => {
@@ -397,7 +485,6 @@ function reload() {
         bulletInfoLabel.text = `${bulletLeft}/${inf}`
         reloadTimeout = undefined
     }, 3000)
-    console.log(inf);
 }
 
 function makeBar(this: any, x: number, y: number, color: number) {
@@ -546,6 +633,7 @@ function renderBomb(isPlanted = false) {
     let scene = game.scene.scenes[0];
     bomb = scene.matter.add.image(bomb_coords.x, bomb_coords.y, 'bomb', undefined, { label: 'bomb' }).setOrigin(0.5, 0.5).setSensor(true).setDepth(-1);
     if(isPlanted) {
+        bombTick = scene.sound.add('bombTick', { loop: true, delay: 1 });
         planted_bomb = scene.add.image(bomb.x, bomb.y, 'bomb-planted').setOrigin(0.5, 0.5).setDepth(-1);
         bombPlantTween = scene.tweens.add({
             targets: [planted_bomb],
@@ -554,6 +642,10 @@ function renderBomb(isPlanted = false) {
             ease: 'Cubic',
             repeat: -1
         })
+        let dist = getDistanceFromPlayer(bomb);
+        let vol = dist > soundDist ? 0 : ((soundDist-dist)/soundDist) * maxBombVol;
+        bombTick.setVolume(vol);
+        bombTick.play();
     }
 }
 
@@ -613,6 +705,9 @@ function renderTip(text: string) {
 
 function startPlanting() {
     let scene = game.scene.scenes[0];
+    if(player.footsteps.isPlaying) {
+        player.footsteps.stop();
+    }
     if(plantingBar) {
         plantingProgress += PLANTING_INCREMENT;
         plantingBar.fillRect(player.x - 25, player.y + 50, plantingProgress, 10);
@@ -650,6 +745,9 @@ function stopPlanting(){
 }
 
 function startDiffusing() {
+    if(player.footsteps.isPlaying) {
+        player.footsteps.stop();
+    }
     let scene = game.scene.scenes[0];
     if(diffusingBar) {
         diffuseProgress += PLANTING_INCREMENT;
@@ -673,7 +771,10 @@ function startDiffusing() {
             }
         });
         diffusingBar.strokeRect(player.x - 25, player.y + 50, 50, 10);
-        diffusingBar.setDepth(101)
+        diffusingBar.setDepth(101);
+
+        scene.sound.play('defuse');
+        sendStartBombDiffusing()
     }   
 }
 
@@ -887,13 +988,27 @@ function add_label(uid: string, x: number, y: number, category: Category) {
     return scene.add.text(x, y - 60, uid, { fontSize: 20, color: category == Category.ENEMY ? '#ff0000' : '#00ff00' }).setOrigin(0.5, 0.5)
 }
 
+export function playBombDiffuseSound() {
+    let scene = game.scene.scenes[0];
+    let dist = getDistanceFromPlayer(bomb);
+    let vol = dist > soundDist ? 0 : ((soundDist-dist)/soundDist);
+    scene.sound.play('defuse', { volume: vol });
+}
+
 export function bombDiffused() {
+    if(bombTick?.isPlaying) {
+        bombTick.stop();
+    }
     bomb.body.gameObject.destroy();
     bomb = undefined;
     planted_bomb.destroy();
 }
 
 export function explode() {
+    if(bombTick?.isPlaying) {
+        bombTick.stop();
+    }
+    let dist = getDistanceFromPlayer(bomb);
     bomb ? bomb.body.gameObject.destroy(): undefined;
     planted_bomb ? planted_bomb.destroy() : undefined;
     let scene = game.scene.scenes[0];
@@ -909,6 +1024,8 @@ export function explode() {
         },
     })
     scene.cameras.main.shake(500);
+    let vol = dist > soundDist ? 0 : ((soundDist-dist)/soundDist);
+    scene.sound.play('explosion', { volume: vol });
 }
 
 export function renderPlayer(uid: string, x: number, y: number, angle: number, team: string, health: number = 100, kills = 0, deaths = 0) {
@@ -932,7 +1049,13 @@ export function renderPlayer(uid: string, x: number, y: number, angle: number, t
         return;
     }
 
-    if(player.isAlive && (player.x != x || player.y != y || player.rotation != angle)) {
+    let posChanged = true;
+    if(!player.isAlive || (Math.abs(player.x - x) <= 0.1 && Math.abs(player.y - y) <= 0.1)) {
+        stopOtherPlayerFootSteps(player);
+        posChanged = false;
+    }
+
+    if(player.isAlive && (Math.abs(player.x - x) > 0.1 || Math.abs(player.y - y) > 0.1 || Math.abs(player.rotation - angle) > 0.1)) {
         let x_pos = [player.x, x];
         let y_pos = [player.y, y];
         let shortestAngle = Phaser.Math.Angle.ShortestBetween(Phaser.Math.RadToDeg(player.rotation), Phaser.Math.RadToDeg(angle));
@@ -946,7 +1069,7 @@ export function renderPlayer(uid: string, x: number, y: number, angle: number, t
             delay: 10,
             loop: true,
             callback: interpolate,
-            args: [uid, player, x_pos, y_pos, angle_arr]
+            args: [uid, player, x_pos, y_pos, angle_arr, posChanged]
         })
     }
 }
@@ -958,11 +1081,28 @@ export function renderRoundWinner(winner: string, isExploded: boolean) {
         explode();
     }
     setTimeout(() => {
+        isRoundEnded = true;
         clearInterval(bulletReloadAnimInterval);
         clearTimeout(timeout);
         winnerLabel.destroy();
     }, 5000)
     clearInterval(roundTimerInterval);
+}
+
+function stopAllFootSteps() {
+    if(player.footsteps.isPlaying) {
+        player.footsteps.stop();
+    }
+    for(let ally in allies) {
+        if(allies[ally].footsteps.isPlaying) {
+            allies[ally].footsteps.stop();
+        }
+    }
+    for(let enemy in enemies) {
+        if(enemies[enemy].footsteps.isPlaying) {
+            enemies[enemy].footsteps.stop();
+        }
+    }
 }
 
 export function renderMatchWinner(winner: string) {
@@ -978,11 +1118,14 @@ export function renderMatchWinner(winner: string) {
     }, 5000)
 }
 
-function interpolate(uid: string, player: any, x_pos: any, y_pos: any, angle_arr: any) {
+function interpolate(uid: string, player: any, x_pos: any, y_pos: any, angle_arr: any, posChanged: boolean) {
     let newX = Phaser.Math.Interpolation.Linear(x_pos, player.incr);
     let newY = Phaser.Math.Interpolation.Linear(y_pos, player.incr);
     let newA = Phaser.Math.Interpolation.Linear(angle_arr, player.incr);
     player.setPosition(newX, newY);
+    if(posChanged) {
+        playOtherPlayerFootSteps(player);
+    }
     player.setRotation(Phaser.Math.Angle.Wrap(newA));
     player.label.x = newX;
     player.label.y = newY - 60;
@@ -992,12 +1135,20 @@ function interpolate(uid: string, player: any, x_pos: any, y_pos: any, angle_arr
     }
     player.incr += 0.1
     if(player.incr > 1) {
+        stopOtherPlayerFootSteps(player);
         if(!player.isAlive) {
             player.setRotation(0);
         }
         player.timer.destroy();
         player.timer = null;
     }
+}
+
+function sendStartBombDiffusing() {
+    channel.emit('START_BOMB_DIFFUSE', {
+        eventName: 'START_BOMB_DIFFUSE',
+        uid: username
+    })
 }
 
 function sendBombPlanted() {
@@ -1229,6 +1380,8 @@ function createPlayer(uid: string, category: Category, x: number = 200, y: numbe
     player.kills = kills;
     player.deaths = deaths;
 
+    player.footsteps = scene.sound.add('footsteps', { loop: true });
+
     return player;
 }
 
@@ -1273,6 +1426,8 @@ function shoot(pointX: number, pointY: number, processedAngle: number, shot_id: 
     bullet.setRotation(processedAngle - Math.PI)
     bullet.setScale(0.3, 0.3);
     bulletMap[map_shot_id] = bullet;
+
+    uid ? scene.sound.play('shot', getSoundProximityConfig(uid)) : undefined
 }
 
 function renderInitialPlayers() {
@@ -1299,30 +1454,30 @@ function setWsListeners(ws: any) {
     });
     ws.binaryType = 'arraybuffer'
 
-    ws.onopen = () => {
-        // let playerData: any = {}
-        // playerData[username] = {
-        //     team: "COUNTER_TERRORIST",
-        //     pos_x: 1700,
-        //     pos_y: 1700,
-        //     angle: 0,
-        //     health: 100,
-        //     isAlive: true,
-        //     kills: 3,
-        //     deaths: 1
-        // };
-        // playerData['abcd'] = {
-        //     team: "COUNTER_TERRORIST",
-        //     pos_x: 1600,
-        //     pos_y: 1600,
-        //     angle: 0,
-        //     health: 100,
-        //     isAlive: true,
-        //     kills: 1,
-        //     deaths: 2
-        // }
-        // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'COUNTER_TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
-    }
+    // ws.onopen = () => {
+    //     // let playerData: any = {}
+    //     // playerData[username] = {
+    //     //     team: "COUNTER_TERRORIST",
+    //     //     pos_x: 1700,
+    //     //     pos_y: 1700,
+    //     //     angle: 0,
+    //     //     health: 100,
+    //     //     isAlive: true,
+    //     //     kills: 3,
+    //     //     deaths: 1
+    //     // };
+    //     // playerData['abcd'] = {
+    //     //     team: "COUNTER_TERRORIST",
+    //     //     pos_x: 1600,
+    //     //     pos_y: 1600,
+    //     //     angle: 0,
+    //     //     health: 100,
+    //     //     isAlive: true,
+    //     //     kills: 1,
+    //     //     deaths: 2
+    //     // }
+    //     // startGame({pos_x: 1700, pos_y: 1800, angle: Math.PI}, 'COUNTER_TERRORIST', playerData, {COUNTER_TERRORIST: 2, TERRORIST: 3}, 20, {x: 1700, y:1700});
+    // }
 
     ws.onmessage = (message: any) => {
         try {
@@ -1357,7 +1512,7 @@ export function openUdpConnection() {
     return channel;
 }
 
-function resetVariables() {
+function resetVariables(alreadyExists = false) {
     shot_id = 0;
     map_shot_id = 0;
     speed = 0.3;
@@ -1365,10 +1520,7 @@ function resetVariables() {
     healthBar = undefined;
     isAlive = false;
     diag_speed = speed / 1.414
-    player = undefined;
     wasd = undefined;
-    enemies = {};
-    allies = {};
     isStarted = false;
     handle_angle = Math.PI/2;
     handle_distance = 16
@@ -1422,6 +1574,15 @@ function resetVariables() {
     }
     scoreBoardBtn = undefined;
     scoreBoardElements = [];
+
+    if(alreadyExists) {
+        stopAllFootSteps();
+    }
+    player = undefined;
+    enemies = {};
+    allies = {};
+    isRoundEnded = false;
+    bombTick = undefined;
 }
 
 function ClearAllIntervals() {
@@ -1431,7 +1592,7 @@ function ClearAllIntervals() {
 
 export function startGame(spawn: any, team: string, users: any, score: any, time_left: number, bomb: any) {
     ClearAllIntervals();
-    resetVariables();
+    resetVariables(game && !isDestroyed);
     
     playerSpawn = spawn;
     playerTeam = team;

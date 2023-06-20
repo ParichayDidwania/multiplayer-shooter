@@ -1,4 +1,4 @@
-import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, openUdpConnection, openWSConnection, reconnectGame, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
+import { bombDiffused, bombDropped, bombPicked, bombPlanted, isInit, openUdpConnection, openWSConnection, playBombDiffuseSound, reconnectGame, renderBullets, renderMatchWinner, renderPlayer, renderRoundWinner, startGame, updateHealth } from "./client";
 
 export class Events {
     socket: any;
@@ -60,6 +60,12 @@ export class Events {
             this.udp_socket.on('BOMB_DROPPED', (data: any) => {                
                 bombDropped(data.uid, data.x, data.y);
             });
+
+            this.udp_socket.on('START_BOMB_DIFFUSE', (data: any) => {
+                if(data.uid != this.uid && isInit()) {
+                    playBombDiffuseSound();
+                }
+            })
         })
     }
 

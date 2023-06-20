@@ -58,6 +58,10 @@ export class UdpService {
       channel.on('BOMB_DROPPED', (data: any) => {
         this._eventManager.handleUdpEvents(data, channel.room_id);
       })
+
+      channel.on('START_BOMB_DIFFUSE', (data: any) => {
+        this._eventManager.handleUdpEvents(data, channel.room_id);
+      })
     })
   }
 }

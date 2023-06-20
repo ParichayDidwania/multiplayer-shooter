@@ -12,7 +12,6 @@ let mainWindow;
 const createWindow = () => {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    webgl: true,
     fullscreenable: true,
   });
 
@@ -23,7 +22,7 @@ const createWindow = () => {
   mainWindow.maximize();
 
   // Open the DevTools.
-  // mainWindow.webContents.openDevTools();
+  mainWindow.webContents.openDevTools();
 
   // Emitted when the window is closed.
   mainWindow.on('closed', () => {
