@@ -8,6 +8,8 @@ Welcome to Shadow Ops, an adrenaline-pumping 5v5 top-down tactical multiplayer s
 
 - **Team-based Gameplay**: Coordinate with your teammates and devise strategic plans to achieve dominance on the battlefield. Effective communication and teamwork are vital in outsmarting your opponents and securing victory.
 
+- **Proximity Sound**: Immerse yourself in the game with realistic audio effects. The Proximity Sound feature dynamically adjusts the sound based on the proximity of in-game events, enhancing the overall immersion and providing valuable audio cues for gameplay.
+
 - **Websockets and NodeJS Backend**: Shadow Ops utilizes websockets for seamless real-time communication between players for events that require **reliability**. The backend is built on NodeJS, providing a robust foundation for smooth gameplay and a reliable multiplayer experience.
 
 - **UDP with WebRTC Backend using Geckos.io**: Shadow Ops utilizes WebRTC for seamless real-time communication between players for events that can afford **unreliability** in order to achieve less latency. Events such as position updates, bullet shots, and bomb pick/drop are being sent and received via UDP. Geckos.io offers real-time client/server communication over UDP using WebRTC and Node.js
