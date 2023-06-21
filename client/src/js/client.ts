@@ -7,12 +7,12 @@ const playerSprite = 'assets/sprites/shooter2.png';
 const bulletSprite = 'assets/sprites/bullet.png'
 
 const MAX_BULLETS = 5;
-// const URL = 'ws://185.183.182.175:7000';
-// const UDP_URL = 'http://185.183.182.175'
+const URL = 'ws://185.183.182.175:7000';
+const UDP_URL = 'http://185.183.182.175'
 
 //UNCOMMENT TO RUN LOCALLY
-const URL = 'ws://localhost:7000';  
-const UDP_URL = 'http://localhost'
+// const URL = 'ws://localhost:7000';  
+// const UDP_URL = 'http://localhost'
 
 let shot_id = 0;
 let map_shot_id = 0;
@@ -97,7 +97,7 @@ let scoreBoardElements: any = [];
 let inf = '\u{221E}';
 
 let isRoundEnded = false;
-const soundDist = 700;
+const soundDist = 900;
 const maxBombVol = 0.7
 let bombTick: any = undefined;
 class GameScene extends Phaser.Scene {
@@ -139,6 +139,7 @@ class GameScene extends Phaser.Scene {
         this.load.audio('bombTick', 'assets/sounds/bombTick.mp3');
         this.load.audio('explosion', 'assets/sounds/explosion.mp3');
         this.load.audio('defuse', 'assets/sounds/defuse.mp3');
+        this.load.audio('reload', 'assets/sounds/reload.mp3');
     }
       
     create(): void {
@@ -467,8 +468,10 @@ function setPosTimeout(player: any) {
 }
 
 function reload() {
+    let scene = game.scene.scenes[0];
     let dotArray = ['.', '..', '...']
     let i = 0;
+    scene.sound.play('reload', { rate: 0.67 });
     bulletReloadAnimInterval = setInterval(() => {
         let dot = '';
         if(i >= dotArray.length - 1) {
@@ -1076,7 +1079,7 @@ export function renderPlayer(uid: string, x: number, y: number, angle: number, t
 
 export function renderRoundWinner(winner: string, isExploded: boolean) {
     let scene = game.scene.scenes[0];
-    let winnerLabel = scene.add.text(scene.cameras.main.width / 2, scene.cameras.main.height / 2 ,`${winner} win` ,{ fontSize: 50, color: '#000000', backgroundColor: '#dddddd' }).setOrigin(0.5, 0.5).setScrollFactor(0, 0).setDepth(103).setPadding(20);
+    let winnerLabel = scene.add.text(scene.cameras.main.width / 2, scene.cameras.main.height / 3 ,`${winner} win` ,{ fontSize: 50, color: '#000000', backgroundColor: '#dddddd' }).setOrigin(0.5, 0.5).setScrollFactor(0, 0).setDepth(103).setPadding(20);
     if(isExploded) {
         explode();
     }
@@ -1107,7 +1110,7 @@ function stopAllFootSteps() {
 
 export function renderMatchWinner(winner: string) {
     let scene = game.scene.scenes[0];
-    scene.add.text(scene.cameras.main.width / 2, scene.cameras.main.height / 2 ,`${winner} wins the match` ,{ fontSize: 50, color: '#000000', backgroundColor: '#ffdc18' }).setOrigin(0.5, 0.5).setScrollFactor(0, 0).setDepth(103).setPadding(20);
+    scene.add.text(scene.cameras.main.width / 2, scene.cameras.main.height / 3 ,`${winner} wins the match` ,{ fontSize: 50, color: '#000000', backgroundColor: '#ffdc18' }).setOrigin(0.5, 0.5).setScrollFactor(0, 0).setDepth(103).setPadding(20);
     setTimeout(() => {
         game.destroy(true);
         event.setMenu();

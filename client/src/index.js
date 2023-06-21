@@ -13,6 +13,9 @@ const createWindow = () => {
   // Create the browser window.
   mainWindow = new BrowserWindow({
     fullscreenable: true,
+    webPreferences: {
+      devTools: !app.isPackaged,
+    },
   });
 
   // and load the index.html of the app.
@@ -22,7 +25,7 @@ const createWindow = () => {
   mainWindow.maximize();
 
   // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
 
   // Emitted when the window is closed.
   mainWindow.on('closed', () => {

@@ -49,6 +49,9 @@ class UdpService {
             channel.on('BOMB_DROPPED', (data) => {
                 this._eventManager.handleUdpEvents(data, channel.room_id);
             });
+            channel.on('START_BOMB_DIFFUSE', (data) => {
+                this._eventManager.handleUdpEvents(data, channel.room_id);
+            });
         });
     }
 }

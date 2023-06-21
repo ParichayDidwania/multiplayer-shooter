@@ -11,28 +11,36 @@ class EventManager {
         this.udpRooms = {};
     }
     handleUdpEvents(data, room_id) {
-        let channels = this.udpRooms[room_id];
-        switch (data.eventName) {
-            case "POSITION": {
-                let team = this.engine.updatePosition(room_id, data.uid, data.x, data.y, data.angle);
-                this.broadcastPlayerPosition(channels, data.uid, data.x, data.y, data.angle, team);
-                break;
-            }
-            case "SHOOT": {
-                let team = this.engine.updateShots(room_id, data.uid, data.id, data.x, data.y, data.angle);
-                this.broadcastShots(channels, data.uid, data.x, data.y, data.angle, team);
-                break;
-            }
-            case "BOMB_PICKED":
-                this.engine.pickBomb(room_id, data.uid);
-                this.broadcastBombPicked(channels, room_id);
-                break;
-            case "BOMB_DROPPED":
-                let uid = this.engine.dropBomb(room_id, data.uid);
-                if (uid) {
-                    this.broadcastBombDropped(channels, room_id, uid);
+        try {
+            let channels = this.udpRooms[room_id];
+            switch (data.eventName) {
+                case "POSITION": {
+                    let team = this.engine.updatePosition(room_id, data.uid, data.x, data.y, data.angle);
+                    this.broadcastPlayerPosition(channels, data.uid, data.x, data.y, data.angle, team);
+                    break;
                 }
-                break;
+                case "SHOOT": {
+                    let team = this.engine.updateShots(room_id, data.uid, data.id, data.x, data.y, data.angle);
+                    this.broadcastShots(channels, data.uid, data.x, data.y, data.angle, team);
+                    break;
+                }
+                case "BOMB_PICKED":
+                    this.engine.pickBomb(room_id, data.uid);
+                    this.broadcastBombPicked(channels, room_id);
+                    break;
+                case "BOMB_DROPPED":
+                    let uid = this.engine.dropBomb(room_id, data.uid);
+                    if (uid) {
+                        this.broadcastBombDropped(channels, room_id, uid);
+                    }
+                    break;
+                case "START_BOMB_DIFFUSE":
+                    this.broadcastStartBombDiffuse(channels, room_id, data.uid);
+                    break;
+            }
+        }
+        catch (e) {
+            console.log(e);
         }
     }
     handleEvents(socket, message) {
@@ -147,6 +155,16 @@ class EventManager {
         for (let user in channels) {
             let channel = channels[user];
             channel.emit('BOMB_DROPPED', dropped);
+        }
+    }
+    broadcastStartBombDiffuse(channels, room_id, uid) {
+        let startDiffuse = {
+            eventName: 'START_BOMB_DIFFUSE',
+            uid: uid
+        };
+        for (let user in channels) {
+            let channel = channels[user];
+            channel.emit('START_BOMB_DIFFUSE', startDiffuse);
         }
     }
     broadcastHealth(room_id, uid, team, health, isAlive, shooter) {
