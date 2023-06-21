@@ -98,7 +98,7 @@ let inf = '\u{221E}';
 
 let isRoundEnded = false;
 const soundDist = 900;
-const maxBombVol = 0.7
+const maxBombVol = 0.5
 let bombTick: any = undefined;
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -1580,6 +1580,7 @@ function resetVariables(alreadyExists = false) {
 
     if(alreadyExists) {
         stopAllFootSteps();
+        bombTick?.isPlaying ? bombTick.stop() : undefined;
     }
     player = undefined;
     enemies = {};
