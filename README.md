@@ -19,7 +19,7 @@ Welcome to Shadow Ops, an adrenaline-pumping 5v5 top-down tactical multiplayer s
 ## How to Play
 
 ### Online Play:
-1. Download `ShadowOps-win32-x64.zip` and extract it. Open ShadowOps.exe inside the extracted folder.
+1. Download Latest Release and extract it. Open ShadowOps.exe inside ShadowOps-win32-x64 folder.
 2. Create a room or join an existing one.
 3. Invite your friends to join your lobby using the provided room id.
 4. Once all players have joined the room, start the match and engage in intense multiplayer battles.
