@@ -1,6 +1,0 @@
-version: '3.8'
-services:
-  server:
-    container_name: server
-    image: parichaydidwania/shadow_ops_server:latest
-    network_mode: "host"
