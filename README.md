@@ -25,7 +25,7 @@ Welcome to Shadow Ops, an adrenaline-pumping 5v5 top-down tactical multiplayer s
 4. Once all players have joined the room, start the match and engage in intense multiplayer battles.
 
 ### Local Play:
-1. Clone the repository (master) to your local machine.
+1. Clone the repository (branch - master) to your local machine.
 2. Install the necessary dependencies for both the client and server using `npm install` in the respective directories.
 3. Start the backend server by using `npm run dev` command in server directory.
 4. Change the server url in `client.ts` file by editing the URL variable at the top of the file to `ws://localhost:7000`.
