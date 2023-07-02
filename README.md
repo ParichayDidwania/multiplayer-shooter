@@ -10,6 +10,8 @@ Welcome to Shadow Ops, an adrenaline-pumping 5v5 top-down tactical multiplayer s
 
 - **Proximity Sound**: Immerse yourself in the game with realistic audio effects. The Proximity Sound feature dynamically adjusts the sound based on the proximity of in-game events, enhancing the overall immersion and providing valuable audio cues for gameplay.
 
+- **Spectate Mode**: Don't miss a moment of the intense battles! Spectate Mode allows you to continue watching the match even after your character has been eliminated. Gain insights into ongoing gameplay, learn from your team mates, and stay engaged until the round ends.
+
 - **Websockets and NodeJS Backend**: Shadow Ops utilizes websockets for seamless real-time communication between players for events that require **reliability**. The backend is built on NodeJS, providing a robust foundation for smooth gameplay and a reliable multiplayer experience.
 
 - **UDP with WebRTC Backend using Geckos.io**: Shadow Ops utilizes WebRTC for seamless real-time communication between players for events that can afford **unreliability** in order to achieve less latency. Events such as position updates, bullet shots, and bomb pick/drop are being sent and received via UDP. Geckos.io offers real-time client/server communication over UDP using WebRTC and Node.js
