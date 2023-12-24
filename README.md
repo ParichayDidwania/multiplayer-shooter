@@ -2,7 +2,9 @@
 
 Welcome to Shadow Ops, an adrenaline-pumping 5v5 top-down tactical multiplayer shooter game. Prepare for intense battles as you join a team of either terrorists or counter-terrorists, engaging in thrilling combat in bomb defusal mode.
 
-![Alt Gameplay](https://github.com/ParichayDidwania/multiplayer-shooter/blob/GIF/Gif/so-gameplay.gif)
+
+https://github.com/ParichayDidwania/multiplayer-shooter/assets/47176112/76192d20-0351-4267-913d-bf11b2649d91
+
 
 ## Features
 
